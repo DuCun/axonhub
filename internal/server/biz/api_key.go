@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/samber/lo"
 	"go.uber.org/fx"
 
+	"github.com/looplj/axonhub/internal/authz"
 	"github.com/looplj/axonhub/internal/contexts"
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/apikey"
@@ -42,12 +44,14 @@ type APIKeyServiceParams struct {
 	CacheConfig    xcache.Config
 	Ent            *ent.Client
 	ProjectService *ProjectService
+	SystemService  *SystemService
 }
 
 type APIKeyService struct {
 	*AbstractService
 
 	ProjectService *ProjectService
+	SystemService  *SystemService
 	APIKeyCache    *live.IndexedCache[string, *ent.APIKey]
 	apiKeyNotifier watcher.Notifier[live.CacheEvent[string]]
 }
@@ -58,6 +62,7 @@ func NewAPIKeyService(params APIKeyServiceParams) *APIKeyService {
 			db: params.Ent,
 		},
 		ProjectService: params.ProjectService,
+		SystemService:  params.SystemService,
 	}
 
 	cacheMode := params.CacheConfig.Mode
@@ -158,8 +163,27 @@ func (s *APIKeyService) loadAPIKeysSince(ctx context.Context, since time.Time) (
 	return items, maxUpdated, nil
 }
 
-// GenerateAPIKey generates a new API key with ah- prefix (similar to OpenAI format).
-func GenerateAPIKey() (string, error) {
+var apiKeyPrefixPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
+
+func normalizeAPIKeyPrefix(prefix string) string {
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return defaultGeneralSettings.APIKeyPrefix
+	}
+
+	return prefix
+}
+
+func validateAPIKeyPrefix(prefix string) error {
+	if !apiKeyPrefixPattern.MatchString(prefix) {
+		return xerrors.ValidationError("API key prefix must start with a lowercase letter, use lowercase letters or digits, and use single hyphen separators only")
+	}
+
+	return nil
+}
+
+// GenerateAPIKey generates a new API key with the configured prefix.
+func GenerateAPIKey(prefix string) (string, error) {
 	// Generate 32 bytes of random data
 	bytes := make([]byte, 32)
 
@@ -168,8 +192,35 @@ func GenerateAPIKey() (string, error) {
 		return "", fmt.Errorf("failed to generate random bytes: %w", err)
 	}
 
-	// Convert to hex and add ah- prefix
-	return "ah-" + hex.EncodeToString(bytes), nil
+	normalizedPrefix := normalizeAPIKeyPrefix(prefix)
+	if err := validateAPIKeyPrefix(normalizedPrefix); err != nil {
+		return "", err
+	}
+
+	return normalizedPrefix + "-" + hex.EncodeToString(bytes), nil
+}
+
+func (s *APIKeyService) generateAPIKey(ctx context.Context) (string, error) {
+	prefix := defaultGeneralSettings.APIKeyPrefix
+	if s.SystemService != nil {
+		settings, err := authz.RunWithSystemBypass(ctx, "api-key-read-prefix", func(bypassCtx context.Context) (*SystemGeneralSettings, error) {
+			return s.SystemService.GeneralSettings(bypassCtx)
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to get general settings: %w", err)
+		}
+		prefix = settings.APIKeyPrefix
+		if err := validateAPIKeyPrefix(normalizeAPIKeyPrefix(prefix)); err != nil {
+			log.Warn(ctx, "invalid persisted api key prefix, falling back to default",
+				log.String("configured_prefix", prefix),
+				log.String("fallback_prefix", defaultGeneralSettings.APIKeyPrefix),
+				log.Cause(err),
+			)
+			prefix = defaultGeneralSettings.APIKeyPrefix
+		}
+	}
+
+	return GenerateAPIKey(prefix)
 }
 
 // CreateLLMAPIKey creates a new API key for LLM calls using a service account API key.
@@ -181,7 +232,7 @@ func (s *APIKeyService) CreateLLMAPIKey(ctx context.Context, owner *ent.APIKey, 
 
 	client := s.entFromContext(ctx)
 
-	generatedKey, err := GenerateAPIKey()
+	generatedKey, err := s.generateAPIKey(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate api key: %w", err)
 	}
@@ -229,8 +280,7 @@ func (s *APIKeyService) CreateAPIKey(ctx context.Context, input ent.CreateAPIKey
 		return nil, xerrors.DuplicateNameError("API Key", input.Name)
 	}
 
-	// Generate API key with ah- prefix (similar to OpenAI format)
-	generatedKey, err := GenerateAPIKey()
+	generatedKey, err := s.generateAPIKey(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate API key: %w", err)
 	}

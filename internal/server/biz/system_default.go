@@ -46,6 +46,7 @@ var defaultChannelSetting = SystemChannelSettings{
 var defaultGeneralSettings = SystemGeneralSettings{
 	CurrencyCode: "USD",
 	Timezone:     "UTC",
+	APIKeyPrefix: "sk",
 }
 
 var defaultAutoBackupSettings = AutoBackupSettings{

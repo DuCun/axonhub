@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 
 	"github.com/looplj/axonhub/internal/authz"
@@ -17,9 +18,10 @@ func setupTestSystemMutationResolver(t *testing.T) (*mutationResolver, context.C
 	t.Helper()
 
 	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=1")
-	systemService := &biz.SystemService{
-		Cache: xcache.NewFromConfig[ent.System](xcache.Config{Mode: xcache.ModeMemory}),
-	}
+	systemService := biz.NewSystemService(biz.SystemServiceParams{
+		CacheConfig: xcache.Config{Mode: xcache.ModeMemory},
+		Ent:         client,
+	})
 
 	ctx := context.Background()
 	ctx = ent.NewContext(ctx, client)
@@ -27,6 +29,31 @@ func setupTestSystemMutationResolver(t *testing.T) (*mutationResolver, context.C
 
 	resolver := &mutationResolver{&Resolver{systemService: systemService}}
 	return resolver, ctx, client
+}
+
+func TestMutationResolver_UpdateSystemGeneralSettings_PartialUpdatePreservesAPIKeyPrefix(t *testing.T) {
+	resolver, ctx, client := setupTestSystemMutationResolver(t)
+	defer client.Close()
+
+	err := resolver.systemService.SetGeneralSettings(ctx, biz.SystemGeneralSettings{
+		CurrencyCode: "USD",
+		Timezone:     "UTC",
+		APIKeyPrefix: "sk-v2",
+	})
+	require.NoError(t, err)
+
+	ok, err := resolver.UpdateSystemGeneralSettings(ctx, UpdateSystemGeneralSettingsInput{
+		CurrencyCode: lo.ToPtr("CNY"),
+		Timezone:     lo.ToPtr("Asia/Shanghai"),
+	})
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	settings, err := resolver.systemService.GeneralSettings(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "CNY", settings.CurrencyCode)
+	require.Equal(t, "Asia/Shanghai", settings.Timezone)
+	require.Equal(t, "sk-v2", settings.APIKeyPrefix)
 }
 
 func TestMutationResolver_UpdateSystemChannelSettings_MergesAutoSyncWithoutOverwritingProbe(t *testing.T) {

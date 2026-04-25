@@ -889,7 +889,7 @@ type ComplexityRoot struct {
 		UpdateRole                           func(childComplexity int, id objects.GUID, input ent.UpdateRoleInput) int
 		UpdateStoragePolicy                  func(childComplexity int, input biz.StoragePolicy) int
 		UpdateSystemChannelSettings          func(childComplexity int, input biz.SystemChannelSettings) int
-		UpdateSystemGeneralSettings          func(childComplexity int, input biz.SystemGeneralSettings) int
+		UpdateSystemGeneralSettings          func(childComplexity int, input UpdateSystemGeneralSettingsInput) int
 		UpdateSystemModelSettings            func(childComplexity int, input biz.SystemModelSettings) int
 		UpdateUser                           func(childComplexity int, id objects.GUID, input ent.UpdateUserInput) int
 		UpdateUserAgentPassThroughSettings   func(childComplexity int, input UpdateUserAgentPassThroughSettingsInput) int
@@ -1451,6 +1451,7 @@ type ComplexityRoot struct {
 	}
 
 	SystemGeneralSettings struct {
+		APIKeyPrefix func(childComplexity int) int
 		CurrencyCode func(childComplexity int) int
 		Timezone     func(childComplexity int) int
 	}
@@ -1919,7 +1920,7 @@ type MutationResolver interface {
 	CompleteSystemModelSettingOnboarding(ctx context.Context, input CompleteSystemModelSettingOnboardingInput) (bool, error)
 	CompleteAutoDisableChannelOnboarding(ctx context.Context, input CompleteAutoDisableChannelOnboardingInput) (bool, error)
 	UpdateSystemChannelSettings(ctx context.Context, input biz.SystemChannelSettings) (bool, error)
-	UpdateSystemGeneralSettings(ctx context.Context, input biz.SystemGeneralSettings) (bool, error)
+	UpdateSystemGeneralSettings(ctx context.Context, input UpdateSystemGeneralSettingsInput) (bool, error)
 	UpdateVideoStorageSettings(ctx context.Context, input biz.VideoStorageSettings) (bool, error)
 	CheckProviderQuotas(ctx context.Context) (bool, error)
 	TriggerGcCleanup(ctx context.Context) (bool, error)
@@ -5701,7 +5702,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.UpdateSystemGeneralSettings(childComplexity, args["input"].(biz.SystemGeneralSettings)), true
+		return e.complexity.Mutation.UpdateSystemGeneralSettings(childComplexity, args["input"].(UpdateSystemGeneralSettingsInput)), true
 	case "Mutation.updateSystemModelSettings":
 		if e.complexity.Mutation.UpdateSystemModelSettings == nil {
 			break
@@ -8236,6 +8237,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.SystemEdge.Node(childComplexity), true
 
+	case "SystemGeneralSettings.apiKeyPrefix":
+		if e.complexity.SystemGeneralSettings.APIKeyPrefix == nil {
+			break
+		}
+
+		return e.complexity.SystemGeneralSettings.APIKeyPrefix(childComplexity), true
 	case "SystemGeneralSettings.currencyCode":
 		if e.complexity.SystemGeneralSettings.CurrencyCode == nil {
 			break
@@ -11264,7 +11271,7 @@ func (ec *executionContext) field_Mutation_updateSystemChannelSettings_args(ctx 
 func (ec *executionContext) field_Mutation_updateSystemGeneralSettings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateSystemGeneralSettingsInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐSystemGeneralSettings)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateSystemGeneralSettingsInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐUpdateSystemGeneralSettingsInput)
 	if err != nil {
 		return nil, err
 	}
@@ -29682,7 +29689,7 @@ func (ec *executionContext) _Mutation_updateSystemGeneralSettings(ctx context.Co
 		ec.fieldContext_Mutation_updateSystemGeneralSettings,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().UpdateSystemGeneralSettings(ctx, fc.Args["input"].(biz.SystemGeneralSettings))
+			return ec.resolvers.Mutation().UpdateSystemGeneralSettings(ctx, fc.Args["input"].(UpdateSystemGeneralSettingsInput))
 		},
 		nil,
 		ec.marshalNBoolean2bool,
@@ -37861,6 +37868,8 @@ func (ec *executionContext) fieldContext_Query_systemGeneralSettings(_ context.C
 				return ec.fieldContext_SystemGeneralSettings_currencyCode(ctx, field)
 			case "timezone":
 				return ec.fieldContext_SystemGeneralSettings_timezone(ctx, field)
+			case "apiKeyPrefix":
+				return ec.fieldContext_SystemGeneralSettings_apiKeyPrefix(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SystemGeneralSettings", field.Name)
 		},
@@ -44307,6 +44316,35 @@ func (ec *executionContext) _SystemGeneralSettings_timezone(ctx context.Context,
 }
 
 func (ec *executionContext) fieldContext_SystemGeneralSettings_timezone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SystemGeneralSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SystemGeneralSettings_apiKeyPrefix(ctx context.Context, field graphql.CollectedField, obj *biz.SystemGeneralSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SystemGeneralSettings_apiKeyPrefix,
+		func(ctx context.Context) (any, error) {
+			return obj.APIKeyPrefix, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SystemGeneralSettings_apiKeyPrefix(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "SystemGeneralSettings",
 		Field:      field,
@@ -72254,14 +72292,14 @@ func (ec *executionContext) unmarshalInputUpdateSystemChannelSettingsInput(ctx c
 	return it, nil
 }
 
-func (ec *executionContext) unmarshalInputUpdateSystemGeneralSettingsInput(ctx context.Context, obj any) (biz.SystemGeneralSettings, error) {
-	var it biz.SystemGeneralSettings
+func (ec *executionContext) unmarshalInputUpdateSystemGeneralSettingsInput(ctx context.Context, obj any) (UpdateSystemGeneralSettingsInput, error) {
+	var it UpdateSystemGeneralSettingsInput
 	asMap := map[string]any{}
 	for k, v := range obj.(map[string]any) {
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"currencyCode", "timezone"}
+	fieldsInOrder := [...]string{"currencyCode", "timezone", "apiKeyPrefix"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -72270,18 +72308,25 @@ func (ec *executionContext) unmarshalInputUpdateSystemGeneralSettingsInput(ctx c
 		switch k {
 		case "currencyCode":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("currencyCode"))
-			data, err := ec.unmarshalOString2string(ctx, v)
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}
 			it.CurrencyCode = data
 		case "timezone":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("timezone"))
-			data, err := ec.unmarshalOString2string(ctx, v)
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}
 			it.Timezone = data
+		case "apiKeyPrefix":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("apiKeyPrefix"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.APIKeyPrefix = data
 		}
 	}
 
@@ -89720,6 +89765,11 @@ func (ec *executionContext) _SystemGeneralSettings(ctx context.Context, sel ast.
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "apiKeyPrefix":
+			out.Values[i] = ec._SystemGeneralSettings_apiKeyPrefix(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -98659,7 +98709,7 @@ func (ec *executionContext) unmarshalNUpdateSystemChannelSettingsInput2githubᚗ
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNUpdateSystemGeneralSettingsInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐSystemGeneralSettings(ctx context.Context, v any) (biz.SystemGeneralSettings, error) {
+func (ec *executionContext) unmarshalNUpdateSystemGeneralSettingsInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐUpdateSystemGeneralSettingsInput(ctx context.Context, v any) (UpdateSystemGeneralSettingsInput, error) {
 	res, err := ec.unmarshalInputUpdateSystemGeneralSettingsInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }

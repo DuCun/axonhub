@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test'
 import { gotoAndEnsureAuth, waitForGraphQLOperation } from './auth.utils'
 
+const API_KEY_PREFIX_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
+
 test.describe('Admin System Management', () => {
   test.beforeEach(async ({ page }) => {
     await gotoAndEnsureAuth(page, '/system')
@@ -58,5 +60,68 @@ test.describe('Admin System Management', () => {
       // If no specific storage text, just verify the tab is active
       await expect(storageTab).toHaveAttribute('aria-selected', 'true')
     }
+  })
+
+  test('can update api key prefix in general settings', async ({ page }) => {
+    const generalTab = page.getByRole('tab', { name: /General|常规/i })
+    await generalTab.click()
+    await expect(generalTab).toHaveAttribute('aria-selected', 'true')
+
+    const prefixInput = page.getByLabel(/API Key Prefix|API Key 前缀/i)
+    await expect(prefixInput).toBeVisible()
+
+    const originalValue = await prefixInput.inputValue()
+    const baselineValue = API_KEY_PREFIX_PATTERN.test(originalValue) ? originalValue : 'sk'
+    const nextValue = baselineValue === 'sk-v2' ? 'sk-prod-2026' : 'sk-v2'
+    const finalValue = baselineValue === nextValue ? 'sk' : baselineValue
+
+    await prefixInput.fill(nextValue)
+    const saveButton = page.getByRole('button', { name: /Save Settings|保存设置/i })
+    await expect(saveButton).toBeEnabled()
+
+    await Promise.all([
+      waitForGraphQLOperation(page, 'UpdateSystemGeneralSettings'),
+      saveButton.click()
+    ])
+
+    await expect(prefixInput).toHaveValue(nextValue)
+
+    await prefixInput.fill(finalValue)
+    const revertButton = page.getByRole('button', { name: /Save Settings|保存设置/i })
+    await expect(revertButton).toBeEnabled()
+    await Promise.all([
+      waitForGraphQLOperation(page, 'UpdateSystemGeneralSettings'),
+      revertButton.click()
+    ])
+
+    await expect(prefixInput).toHaveValue(finalValue)
+  })
+
+  test('rejects invalid api key prefix formats in general settings', async ({ page }) => {
+    const generalTab = page.getByRole('tab', { name: /General|常规/i })
+    await generalTab.click()
+    await expect(generalTab).toHaveAttribute('aria-selected', 'true')
+
+    const prefixInput = page.getByTestId('system-api-key-prefix')
+    await expect(prefixInput).toBeVisible()
+
+    const saveButton = page.getByRole('button', { name: /Save Settings|保存设置/i })
+    const validation = page.getByTestId('system-api-key-prefix-validation')
+
+    await prefixInput.fill('sk--prod')
+    await expect(validation).toBeVisible()
+    await expect(saveButton).toBeDisabled()
+
+    await prefixInput.fill('SK-prod')
+    await expect(validation).toBeVisible()
+    await expect(saveButton).toBeDisabled()
+
+    await prefixInput.fill('2026-sk')
+    await expect(validation).toBeVisible()
+    await expect(saveButton).toBeDisabled()
+
+    await prefixInput.fill('sk-')
+    await expect(validation).toBeVisible()
+    await expect(saveButton).toBeDisabled()
   })
 })

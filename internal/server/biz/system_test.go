@@ -605,6 +605,83 @@ func TestSystemService_BrandLogo_NotSet(t *testing.T) {
 	require.Empty(t, brandLogo)
 }
 
+func TestSystemService_GeneralSettings_DefaultAndPersistedAPIKeyPrefix(t *testing.T) {
+	cacheConfig := xcache.Config{Mode: xcache.ModeMemory}
+
+	service, client := setupTestSystemService(t, cacheConfig)
+	defer client.Close()
+
+	ctx := context.Background()
+	ctx = ent.NewContext(ctx, client)
+	ctx = authz.WithTestBypass(ctx)
+
+	settings, err := service.GeneralSettings(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "USD", settings.CurrencyCode)
+	require.Equal(t, "UTC", settings.Timezone)
+	require.Equal(t, "sk", settings.APIKeyPrefix)
+
+	err = service.SetGeneralSettings(ctx, SystemGeneralSettings{
+		CurrencyCode: "CNY",
+		Timezone:     "Asia/Shanghai",
+		APIKeyPrefix: "custom-prod",
+	})
+	require.NoError(t, err)
+
+	settings, err = service.GeneralSettings(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "CNY", settings.CurrencyCode)
+	require.Equal(t, "Asia/Shanghai", settings.Timezone)
+	require.Equal(t, "custom-prod", settings.APIKeyPrefix)
+}
+
+func TestSystemService_GeneralSettings_InvalidAPIKeyPrefix(t *testing.T) {
+	cacheConfig := xcache.Config{Mode: xcache.ModeMemory}
+
+	service, client := setupTestSystemService(t, cacheConfig)
+	defer client.Close()
+
+	ctx := context.Background()
+	ctx = ent.NewContext(ctx, client)
+	ctx = authz.WithTestBypass(ctx)
+
+	err := service.SetGeneralSettings(ctx, SystemGeneralSettings{
+		CurrencyCode: "USD",
+		Timezone:     "UTC",
+		APIKeyPrefix: "sk----prod",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to validate api key prefix")
+	require.Contains(t, err.Error(), "API key prefix must start with a lowercase letter, use lowercase letters or digits, and use single hyphen separators only")
+
+	err = service.SetGeneralSettings(ctx, SystemGeneralSettings{
+		CurrencyCode: "USD",
+		Timezone:     "UTC",
+		APIKeyPrefix: "SK-prod",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to validate api key prefix")
+	require.Contains(t, err.Error(), "API key prefix must start with a lowercase letter, use lowercase letters or digits, and use single hyphen separators only")
+
+	err = service.SetGeneralSettings(ctx, SystemGeneralSettings{
+		CurrencyCode: "USD",
+		Timezone:     "UTC",
+		APIKeyPrefix: "sk-",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to validate api key prefix")
+	require.Contains(t, err.Error(), "API key prefix must start with a lowercase letter, use lowercase letters or digits, and use single hyphen separators only")
+
+	err = service.SetGeneralSettings(ctx, SystemGeneralSettings{
+		CurrencyCode: "USD",
+		Timezone:     "UTC",
+		APIKeyPrefix: "2026-sk",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to validate api key prefix")
+	require.Contains(t, err.Error(), "API key prefix must start with a lowercase letter, use lowercase letters or digits, and use single hyphen separators only")
+}
+
 func TestSystemService_Version(t *testing.T) {
 	cacheConfig := xcache.Config{Mode: xcache.ModeMemory}
 

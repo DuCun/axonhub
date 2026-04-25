@@ -210,11 +210,13 @@ export interface BrandSettings {
 export interface SystemGeneralSettings {
   currencyCode: string;
   timezone: string;
+  apiKeyPrefix: string;
 }
 
 export interface UpdateSystemGeneralSettingsInput {
   currencyCode?: string;
   timezone?: string;
+  apiKeyPrefix?: string;
 }
 
 export interface VideoStorageSettings {
@@ -774,6 +776,7 @@ const SYSTEM_GENERAL_SETTINGS_QUERY = `
     systemGeneralSettings {
       currencyCode
       timezone
+      apiKeyPrefix
     }
   }
 `;

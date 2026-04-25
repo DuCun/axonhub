@@ -235,11 +235,13 @@ input UpdateSystemChannelSettingsInput {
 type SystemGeneralSettings {
   currencyCode: String!
   timezone: String!
+  apiKeyPrefix: String!
 }
 
 input UpdateSystemGeneralSettingsInput {
   currencyCode: String
   timezone: String
+  apiKeyPrefix: String
 }
 
 type VideoStorageSettings {

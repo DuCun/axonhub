@@ -566,7 +566,7 @@ models:
       - github.com/looplj/axonhub/internal/server/biz.SystemGeneralSettings
   UpdateSystemGeneralSettingsInput:
     model:
-      - github.com/looplj/axonhub/internal/server/biz.SystemGeneralSettings
+      - github.com/looplj/axonhub/internal/server/gql.UpdateSystemGeneralSettingsInput
   VideoStorageSettings:
     model:
       - github.com/looplj/axonhub/internal/server/biz.VideoStorageSettings

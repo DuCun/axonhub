@@ -24,22 +24,144 @@ import (
 )
 
 func TestGenerateAPIKey(t *testing.T) {
-	apiKey, err := GenerateAPIKey()
+	apiKey, err := GenerateAPIKey("sk")
 	require.NoError(t, err)
 	require.NotEmpty(t, apiKey)
 	require.True(t, len(apiKey) > 3)
-	require.Equal(t, "ah-", apiKey[:3])
+	require.Equal(t, "sk-", apiKey[:3])
 
 	// Test that multiple calls produce different keys
-	apiKey2, err := GenerateAPIKey()
+	apiKey2, err := GenerateAPIKey("sk")
 	require.NoError(t, err)
 	require.NotEqual(t, apiKey, apiKey2)
+}
+
+func TestGenerateAPIKey_NormalizePrefix(t *testing.T) {
+	apiKey, err := GenerateAPIKey("custom")
+	require.NoError(t, err)
+	require.Equal(t, "custom-", apiKey[:7])
+
+	apiKeyWithDigits, err := GenerateAPIKey("sk-v2")
+	require.NoError(t, err)
+	require.Equal(t, "sk-v2-", apiKeyWithDigits[:6])
+
+	apiKey2, err := GenerateAPIKey("")
+	require.NoError(t, err)
+	require.Equal(t, "sk-", apiKey2[:3])
+}
+
+func TestGenerateAPIKey_InvalidPrefix(t *testing.T) {
+	_, err := GenerateAPIKey("sk----prod")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "API key prefix must start with a lowercase letter, use lowercase letters or digits, and use single hyphen separators only")
+
+	_, err = GenerateAPIKey("---------")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "API key prefix must start with a lowercase letter, use lowercase letters or digits, and use single hyphen separators only")
+
+	_, err = GenerateAPIKey("SK-prod")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "API key prefix must start with a lowercase letter, use lowercase letters or digits, and use single hyphen separators only")
+
+	_, err = GenerateAPIKey("2026-sk")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "API key prefix must start with a lowercase letter, use lowercase letters or digits, and use single hyphen separators only")
+}
+
+func TestAPIKeyService_GeneratesKeysWithConfiguredPrefix(t *testing.T) {
+	apiKeyService, client := setupTestAPIKeyService(t, xcache.Config{Mode: xcache.ModeMemory})
+	defer apiKeyService.Stop()
+	defer client.Close()
+
+	ctx := context.Background()
+	ctx = ent.NewContext(ctx, client)
+	ctx = authz.WithTestBypass(ctx)
+
+	testUser, err := client.User.Create().
+		SetEmail("prefix-test@example.com").
+		SetPassword("password").
+		SetFirstName("Prefix").
+		SetLastName("User").
+		SetPreferLanguage("en").
+		SetIsOwner(true).
+		SetStatus(user.StatusActivated).
+		Save(ctx)
+	require.NoError(t, err)
+	ctx = contexts.WithUser(ctx, testUser)
+
+	err = apiKeyService.SystemService.SetGeneralSettings(ctx, SystemGeneralSettings{
+		CurrencyCode: "USD",
+		Timezone:     "UTC",
+		APIKeyPrefix: "sk-v2",
+	})
+	require.NoError(t, err)
+
+	testProject, err := client.Project.Create().
+		SetName("prefix-test-project").
+		Save(ctx)
+	require.NoError(t, err)
+
+	apiKey, err := apiKeyService.CreateAPIKey(ctx, ent.CreateAPIKeyInput{
+		Name:      "Prefix Key",
+		ProjectID: testProject.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "sk-v2-", apiKey.Key[:6])
+}
+
+func TestAPIKeyService_FallsBackWhenPersistedPrefixIsInvalid(t *testing.T) {
+	apiKeyService, client := setupTestAPIKeyService(t, xcache.Config{Mode: xcache.ModeMemory})
+	defer apiKeyService.Stop()
+	defer client.Close()
+
+	ctx := context.Background()
+	ctx = ent.NewContext(ctx, client)
+	ctx = authz.WithTestBypass(ctx)
+
+	testUser, err := client.User.Create().
+		SetEmail("legacy-prefix-test@example.com").
+		SetPassword("password").
+		SetFirstName("Legacy").
+		SetLastName("Prefix").
+		SetPreferLanguage("en").
+		SetIsOwner(true).
+		SetStatus(user.StatusActivated).
+		Save(ctx)
+	require.NoError(t, err)
+	ctx = contexts.WithUser(ctx, testUser)
+
+	err = apiKeyService.SystemService.SetGeneralSettings(ctx, SystemGeneralSettings{
+		CurrencyCode: "USD",
+		Timezone:     "UTC",
+		APIKeyPrefix: "valid-prefix",
+	})
+	require.NoError(t, err)
+
+	// Simulate a legacy persisted invalid prefix from before strict validation existed.
+	err = apiKeyService.SystemService.setSystemValue(ctx, SystemKeyGeneralSettings, `{"currency_code":"USD","timezone":"UTC","api_key_prefix":"SK-prod"}`)
+	require.NoError(t, err)
+
+	testProject, err := client.Project.Create().
+		SetName("legacy-prefix-project").
+		Save(ctx)
+	require.NoError(t, err)
+
+	apiKey, err := apiKeyService.CreateAPIKey(ctx, ent.CreateAPIKeyInput{
+		Name:      "Legacy Prefix Key",
+		ProjectID: testProject.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "sk-", apiKey.Key[:3])
 }
 
 func setupTestAPIKeyService(t *testing.T, cacheConfig xcache.Config) (*APIKeyService, *ent.Client) {
 	t.Helper()
 
 	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=1")
+	systemService := NewSystemService(SystemServiceParams{
+		CacheConfig: cacheConfig,
+		Ent:         client,
+	})
 
 	projectService := &ProjectService{
 		ProjectCache: xcache.NewFromConfig[xcache.Entry[ent.Project]](cacheConfig),
@@ -49,6 +171,7 @@ func setupTestAPIKeyService(t *testing.T, cacheConfig xcache.Config) (*APIKeySer
 		CacheConfig:    cacheConfig,
 		Ent:            client,
 		ProjectService: projectService,
+		SystemService:  systemService,
 	})
 
 	return apiKeyService, client
@@ -91,7 +214,7 @@ func TestAPIKeyService_GetAPIKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate API key
-	apiKeyString, err := GenerateAPIKey()
+	apiKeyString, err := GenerateAPIKey(defaultGeneralSettings.APIKeyPrefix)
 	require.NoError(t, err)
 
 	// Create API key in database
@@ -207,7 +330,7 @@ func TestAPIKeyService_GetAPIKey_WithDifferentCaches(t *testing.T) {
 			require.NoError(t, err)
 
 			// Generate and create API key
-			apiKeyString, err := GenerateAPIKey()
+			apiKeyString, err := GenerateAPIKey(defaultGeneralSettings.APIKeyPrefix)
 			require.NoError(t, err)
 
 			apiKey, err := client.APIKey.Create().
@@ -1005,7 +1128,7 @@ func TestAPIKeyService_CreateAPIKey_Type(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.True(t, len(userAPIKey.Key) > 3)
-		require.Equal(t, "ah-", userAPIKey.Key[:3])
+		require.Equal(t, "sk-", userAPIKey.Key[:3])
 
 		serviceAPIKey, err := apiKeyService.CreateAPIKey(ctxWithUser, ent.CreateAPIKeyInput{
 			Name:      "Service Key for format check",
@@ -1014,7 +1137,7 @@ func TestAPIKeyService_CreateAPIKey_Type(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.True(t, len(serviceAPIKey.Key) > 3)
-		require.Equal(t, "ah-", serviceAPIKey.Key[:3])
+		require.Equal(t, "sk-", serviceAPIKey.Key[:3])
 		require.NotEqual(t, userAPIKey.Key, serviceAPIKey.Key)
 	})
 }
@@ -1048,7 +1171,7 @@ func TestAPIKeyService_CreateLLMAPIKey(t *testing.T) {
 		Save(setupCtx)
 	require.NoError(t, err)
 
-	serviceKey, err := GenerateAPIKey()
+	serviceKey, err := GenerateAPIKey(defaultGeneralSettings.APIKeyPrefix)
 	require.NoError(t, err)
 
 	ownerAPIKey, err := client.APIKey.Create().

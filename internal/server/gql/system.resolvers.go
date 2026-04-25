@@ -137,8 +137,23 @@ func (r *mutationResolver) UpdateSystemChannelSettings(ctx context.Context, inpu
 }
 
 // UpdateSystemGeneralSettings is the resolver for the updateSystemGeneralSettings field.
-func (r *mutationResolver) UpdateSystemGeneralSettings(ctx context.Context, input biz.SystemGeneralSettings) (bool, error) {
-	err := r.systemService.SetGeneralSettings(ctx, input)
+func (r *mutationResolver) UpdateSystemGeneralSettings(ctx context.Context, input UpdateSystemGeneralSettingsInput) (bool, error) {
+	settings, err := r.systemService.GeneralSettings(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to get general settings: %w", err)
+	}
+
+	if input.CurrencyCode != nil {
+		settings.CurrencyCode = *input.CurrencyCode
+	}
+	if input.Timezone != nil {
+		settings.Timezone = *input.Timezone
+	}
+	if input.APIKeyPrefix != nil {
+		settings.APIKeyPrefix = *input.APIKeyPrefix
+	}
+
+	err = r.systemService.SetGeneralSettings(ctx, *settings)
 	if err != nil {
 		return false, fmt.Errorf("failed to update general settings: %w", err)
 	}

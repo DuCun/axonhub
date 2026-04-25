@@ -100,6 +100,8 @@ type SystemGeneralSettings struct {
 	// CurrencyCode is the code used for currency display (e.g., USD, RMB).
 	CurrencyCode string `json:"currency_code"`
 	Timezone     string `json:"timezone"`
+	// APIKeyPrefix controls the prefix used for newly generated API keys.
+	APIKeyPrefix string `json:"api_key_prefix"`
 }
 
 // VideoStorageSettings represents system settings for persisting generated videos.
@@ -1074,11 +1076,20 @@ func (s *SystemService) GeneralSettings(ctx context.Context) (*SystemGeneralSett
 		settings.Timezone = defaultGeneralSettings.Timezone
 	}
 
+	if settings.APIKeyPrefix == "" {
+		settings.APIKeyPrefix = defaultGeneralSettings.APIKeyPrefix
+	}
+
 	return &settings, nil
 }
 
 // SetGeneralSettings sets the general settings configuration.
 func (s *SystemService) SetGeneralSettings(ctx context.Context, settings SystemGeneralSettings) error {
+	settings.APIKeyPrefix = normalizeAPIKeyPrefix(settings.APIKeyPrefix)
+	if err := validateAPIKeyPrefix(settings.APIKeyPrefix); err != nil {
+		return fmt.Errorf("failed to validate api key prefix: %w", err)
+	}
+
 	jsonBytes, err := json.Marshal(settings)
 	if err != nil {
 		return fmt.Errorf("failed to marshal general settings: %w", err)

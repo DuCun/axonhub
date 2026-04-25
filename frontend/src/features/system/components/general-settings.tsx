@@ -5,6 +5,7 @@ import { Loader2, Save } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { AutoCompleteSelect } from '@/components/auto-complete-select';
@@ -31,6 +32,8 @@ export function GeneralSettings() {
 
   const [currencyCode, setCurrencyCode] = useState('USD');
   const [timezone, setTimezone] = useState('UTC');
+  const [apiKeyPrefix, setApiKeyPrefix] = useState('sk');
+  const apiKeyPrefixPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
   const currencyItems = React.useMemo(
     () =>
@@ -48,6 +51,7 @@ export function GeneralSettings() {
     if (settings) {
       setCurrencyCode(settings.currencyCode || 'USD');
       setTimezone(settings.timezone || 'UTC');
+      setApiKeyPrefix(settings.apiKeyPrefix || 'sk');
     }
   }, [settings]);
 
@@ -59,11 +63,16 @@ export function GeneralSettings() {
   }, [uaSettings]);
 
   const handleSave = async () => {
+    if (!apiKeyPrefixPattern.test(apiKeyPrefix.trim())) {
+      return;
+    }
+
     setIsLoading(true);
     try {
       await updateSettings.mutateAsync({
         currencyCode: currencyCode.trim(),
         timezone: timezone.trim(),
+        apiKeyPrefix: apiKeyPrefix.trim(),
       });
     } finally {
       setIsLoading(false);
@@ -82,8 +91,9 @@ export function GeneralSettings() {
   };
 
   const hasChanges = settings
-    ? settings.currencyCode !== currencyCode || settings.timezone !== timezone
+    ? settings.currencyCode !== currencyCode || settings.timezone !== timezone || settings.apiKeyPrefix !== apiKeyPrefix
     : false;
+  const isValidAPIKeyPrefix = apiKeyPrefixPattern.test(apiKeyPrefix.trim());
 
   if (isLoadingSettings) {
     return (
@@ -129,6 +139,25 @@ export function GeneralSettings() {
             </div>
             <div className='text-muted-foreground text-sm'>{t('system.general.timezone.description')}</div>
           </div>
+
+          <div className='space-y-2'>
+            <Label htmlFor='api-key-prefix'>{t('system.general.apiKeyPrefix.label')}</Label>
+            <div className='max-w-md'>
+              <Input
+                id='api-key-prefix'
+                value={apiKeyPrefix}
+                onChange={(e) => setApiKeyPrefix(e.target.value)}
+                placeholder={t('system.general.apiKeyPrefix.placeholder')}
+                data-testid='system-api-key-prefix'
+              />
+            </div>
+            <div className='text-muted-foreground text-sm'>{t('system.general.apiKeyPrefix.description')}</div>
+            {!isValidAPIKeyPrefix && (
+              <div data-testid='system-api-key-prefix-validation' className='text-sm text-red-600'>
+                {t('system.general.apiKeyPrefix.validation')}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -155,7 +184,7 @@ export function GeneralSettings() {
 
       {hasChanges && (
         <div className='flex justify-end'>
-          <Button onClick={handleSave} disabled={isLoading || updateSettings.isPending} className='min-w-[100px]'>
+          <Button onClick={handleSave} disabled={isLoading || updateSettings.isPending || !isValidAPIKeyPrefix} className='min-w-[100px]'>
             {isLoading || updateSettings.isPending ? (
               <>
                 <Loader2 className='mr-2 h-4 w-4 animate-spin' />
