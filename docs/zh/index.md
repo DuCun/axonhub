@@ -71,7 +71,7 @@
 
 ## 🔗 相关链接
 
-- [GitHub 仓库](https://github.com/looplj/axonhub)
+- [GitHub 仓库](https://github.com/DuCun/axonhub)
 - [DeepWiki 文档](https://deepwiki.com/looplj/axonhub)
 - [Zread AI](https://zread.ai/looplj/axonhub)
 

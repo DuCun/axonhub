@@ -9,7 +9,7 @@
 ### 1. 克隆仓库
 
 ```bash
-git clone https://github.com/looplj/axonhub.git
+git clone https://github.com/DuCun/axonhub.git
 cd axonhub
 ```
 

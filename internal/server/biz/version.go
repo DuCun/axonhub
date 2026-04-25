@@ -52,7 +52,7 @@ func (s *SystemService) CheckForUpdate(ctx context.Context) (*VersionCheckResult
 	}
 
 	hasUpdate := s.isNewerVersion(currentVersion, latestVersion)
-	releaseURL := fmt.Sprintf("https://github.com/looplj/axonhub/releases/tag/%s", latestVersion)
+	releaseURL := fmt.Sprintf("https://github.com/DuCun/axonhub/releases/tag/%s", latestVersion)
 
 	return &VersionCheckResult{
 		CurrentVersion: currentVersion,
