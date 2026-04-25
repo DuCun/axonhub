@@ -4,6 +4,8 @@
 
 本指南将帮助您快速开始使用 AxonHub。只需几分钟，您就可以运行 AxonHub 并发出第一个 API 调用。
 
+当前仓库 fork 自 [looplj/axonhub](https://github.com/looplj/axonhub)，本 fork 当前暂不提供 Homebrew 发行。
+
 ## 先决条件
 
 - Docker 和 Docker Compose（推荐）
@@ -16,7 +18,7 @@
 
 1. **克隆仓库**
    ```bash
-   git clone https://github.com/looplj/axonhub.git
+   git clone https://github.com/DuCun/axonhub.git
    cd axonhub
    ```
 
@@ -38,8 +40,9 @@
 ### 方法 2：二进制下载
 
 1. **下载最新版本**
-   - 访问 [GitHub Releases](https://github.com/looplj/axonhub/releases)
+   - 访问 [GitHub Releases](https://github.com/DuCun/axonhub/releases)
    - 下载适合您操作系统的二进制文件
+   - 本 fork 当前暂不提供 Homebrew 发行渠道
 
 2. **解压并运行**
    ```bash
@@ -389,7 +392,7 @@ log:
 
 ### 获取帮助
 
-- 查看 [GitHub Issues](https://github.com/looplj/axonhub/issues)
+- 查看 [GitHub Issues](https://github.com/DuCun/axonhub/issues)
 - 查看 [架构文档](../development/erd.md)
 - 加入社区讨论
 

@@ -9,8 +9,8 @@
 
 <div align="center">
 
-[![测试状态](https://github.com/looplj/axonhub/actions/workflows/test.yml/badge.svg)](https://github.com/looplj/axonhub/actions/workflows/test.yml)
-[![Lint 状态](https://github.com/looplj/axonhub/actions/workflows/lint.yml/badge.svg)](https://github.com/looplj/axonhub/actions/workflows/lint.yml)
+[![测试状态](https://github.com/DuCun/axonhub/actions/workflows/test.yml/badge.svg)](https://github.com/DuCun/axonhub/actions/workflows/test.yml)
+[![Lint 状态](https://github.com/DuCun/axonhub/actions/workflows/lint.yml/badge.svg)](https://github.com/DuCun/axonhub/actions/workflows/lint.yml)
 [![Go 版本](https://img.shields.io/github/go-mod/go-version/looplj/axonhub?logo=go&logoColor=white)](https://golang.org/)
 [![Docker Ready](https://img.shields.io/badge/docker-ready-2496ED?logo=docker&logoColor=white)](https://docker.com)
 
@@ -24,6 +24,8 @@
 >
 > 1. 本项目为个人维护，作者不对使用风险作任何保证，请审慎评估。
 > 2. 本项目核心范围不包括 2api（订阅转 API）；如有此类需求，建议使用其他专注于 2api 的开源项目。
+> 3. 当前仓库 fork 自 [looplj/axonhub](https://github.com/looplj/axonhub)。
+> 4. 本 fork 当前暂不提供 Homebrew 发行，请优先使用 GitHub Releases、Docker 镜像或源码部署。
 
 ---
 
@@ -180,7 +182,7 @@
 
 ```bash
 # 下载并解压（以 macOS ARM64 为例）
-curl -sSL https://github.com/looplj/axonhub/releases/latest/download/axonhub_darwin_arm64.tar.gz | tar xz
+curl -sSL https://github.com/DuCun/axonhub/releases/latest/download/axonhub_darwin_arm64.tar.gz | tar xz
 cd axonhub_*
 
 # 使用 SQLite 运行（默认）
@@ -223,8 +225,9 @@ response = client.chat.completions.create(
 
 #### 快速下载运行 | Quick Download & Run
 
-1. **下载最新版本** 从 [GitHub Releases](https://github.com/looplj/axonhub/releases)
+1. **下载最新版本** 从 [GitHub Releases](https://github.com/DuCun/axonhub/releases)
    - 选择适合您操作系统的版本：
+   - 本 fork 当前暂不提供 Homebrew 发行渠道。
 
 2. **解压并运行**
    ```bash
@@ -305,7 +308,7 @@ AXONHUB_LOG_LEVEL=info
 
 ```bash
 # 克隆项目
-git clone https://github.com/looplj/axonhub.git
+git clone https://github.com/DuCun/axonhub.git
 cd axonhub
 
 # 设置环境变量
@@ -325,7 +328,7 @@ docker-compose ps
 
 ```bash
 # Quick installation
-git clone https://github.com/looplj/axonhub.git
+git clone https://github.com/DuCun/axonhub.git
 cd axonhub
 helm install axonhub ./deploy/helm
 
@@ -351,11 +354,11 @@ kubectl port-forward svc/axonhub 8090:8090
 
 #### 虚拟机部署 | Virtual Machine Deployment
 
-下载最新版本从 [GitHub Releases](https://github.com/looplj/axonhub/releases)
+下载最新版本从 [GitHub Releases](https://github.com/DuCun/axonhub/releases)
 
 ```bash
 # 克隆项目
-git clone https://github.com/looplj/axonhub.git
+git clone https://github.com/DuCun/axonhub.git
 cd axonhub
 
 # 设置环境变量
@@ -469,7 +472,7 @@ AxonHub 提供灵活的模型管理系统，支持通过模型关联将抽象模
 
 **AxonHub** - All-in-one AI 开发平台，让 AI 开发更简单
 
-[🏠 官网](https://github.com/looplj/axonhub) • [📚 文档](https://deepwiki.com/looplj/axonhub) • [🐛 问题反馈](https://github.com/looplj/axonhub/issues)
+[🏠 官网](https://github.com/DuCun/axonhub) • [📚 文档](https://deepwiki.com/looplj/axonhub) • [🐛 问题反馈](https://github.com/DuCun/axonhub/issues)
 
 Built with ❤️ by the AxonHub team
 

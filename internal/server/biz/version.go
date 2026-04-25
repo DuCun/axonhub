@@ -52,7 +52,7 @@ func (s *SystemService) CheckForUpdate(ctx context.Context) (*VersionCheckResult
 	}
 
 	hasUpdate := s.isNewerVersion(currentVersion, latestVersion)
-	releaseURL := fmt.Sprintf("https://github.com/looplj/axonhub/releases/tag/%s", latestVersion)
+	releaseURL := fmt.Sprintf("https://github.com/DuCun/axonhub/releases/tag/%s", latestVersion)
 
 	return &VersionCheckResult{
 		CurrentVersion: currentVersion,
@@ -89,7 +89,7 @@ const releaseCooldownDuration = 30 * time.Minute
 // It skips beta, rc, and prerelease versions, and waits for a cooldown period after release.
 // In monorepo mode, it only considers tags matching "vX.Y.Z" (no service prefix).
 func FetchLatestGitHubRelease(ctx context.Context) (string, error) {
-	baseURL := "https://api.github.com/repos/looplj/axonhub/releases"
+	baseURL := "https://api.github.com/repos/DuCun/axonhub/releases"
 
 	u, err := url.Parse(baseURL)
 	if err != nil {

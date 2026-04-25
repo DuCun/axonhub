@@ -4,6 +4,8 @@
 
 This guide will help you get started with AxonHub quickly. In just a few minutes, you'll have AxonHub running and be able to make your first API call.
 
+This repository is a fork of [looplj/axonhub](https://github.com/looplj/axonhub). Homebrew distribution is currently paused for this fork.
+
 ## Prerequisites
 
 - Docker and Docker Compose (recommended)
@@ -16,7 +18,7 @@ This guide will help you get started with AxonHub quickly. In just a few minutes
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/looplj/axonhub.git
+   git clone https://github.com/DuCun/axonhub.git
    cd axonhub
    ```
 
@@ -38,8 +40,9 @@ This guide will help you get started with AxonHub quickly. In just a few minutes
 ### Method 2: Binary Download
 
 1. **Download the latest release**
-   - Visit [GitHub Releases](https://github.com/looplj/axonhub/releases)
+   - Visit [GitHub Releases](https://github.com/DuCun/axonhub/releases)
    - Download the appropriate binary for your OS
+   - This fork currently does not provide a Homebrew release channel
 
 2. **Extract and run**
    ```bash
@@ -389,7 +392,7 @@ log:
 
 ### Getting Help
 
-- Check the [GitHub Issues](https://github.com/looplj/axonhub/issues)
+- Check the [GitHub Issues](https://github.com/DuCun/axonhub/issues)
 - Review the [Architecture Documentation](../development/erd.md)
 - Join the community discussions
 

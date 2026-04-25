@@ -18,9 +18,9 @@ body:
       label: Pre-submission Checklist / 提交前检查
       description: Please confirm the following before submitting / 提交前请确认以下内容
       options:
-        - label: I have searched the [existing issues](https://github.com/looplj/axonhub/issues) and this bug has not been reported / 我已搜索现有 issues，此 Bug 尚未被报告
+        - label: I have searched the [existing issues](https://github.com/xiaomoy/axonhub/issues) and this bug has not been reported / 我已搜索现有 issues，此 Bug 尚未被报告
           required: true
-        - label: I have read the [documentation](https://github.com/looplj/axonhub#readme) / 我已阅读文档
+        - label: I have read the [documentation](https://github.com/xiaomoy/axonhub#readme) / 我已阅读文档
           required: true
         - label: I am using the latest version of AxonHub / 我正在使用 AxonHub 的最新版本
           required: true
