@@ -77,7 +77,7 @@ func TestRequestFromLLM(t *testing.T) {
 
 func TestRequestFromLLM_FiltersResponsesCustomTools(t *testing.T) {
 	req := RequestFromLLM(&llm.Request{
-		Model: "gpt-4o",
+		Model:    "gpt-4o",
 		Messages: []llm.Message{{Role: "user", Content: llm.MessageContent{Content: lo.ToPtr("hi")}}},
 		Tools: []llm.Tool{
 			{
@@ -99,6 +99,21 @@ func TestRequestFromLLM_FiltersResponsesCustomTools(t *testing.T) {
 	require.NotNil(t, req)
 	require.Len(t, req.Tools, 1)
 	require.Equal(t, llm.ToolTypeFunction, req.Tools[0].Type)
+}
+
+func TestRequestFromLLM_DropsNonFunctionNamedToolChoice(t *testing.T) {
+	req := RequestFromLLM(&llm.Request{
+		Model:    "gpt-4o",
+		Messages: []llm.Message{{Role: "user", Content: llm.MessageContent{Content: lo.ToPtr("hi")}}},
+		ToolChoice: &llm.ToolChoice{
+			NamedToolChoice: &llm.NamedToolChoice{
+				Type: llm.ToolTypeWebSearch,
+			},
+		},
+	})
+
+	require.NotNil(t, req)
+	require.Nil(t, req.ToolChoice)
 }
 
 func TestMessageContentPartAudioRoundTrip(t *testing.T) {

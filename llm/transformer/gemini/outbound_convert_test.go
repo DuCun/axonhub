@@ -1021,6 +1021,31 @@ func TestConvertLLMToGeminiRequest_Tools(t *testing.T) {
 				require.Equal(t, []string{"specific_function"}, result.ToolConfig.FunctionCallingConfig.AllowedFunctionNames)
 			},
 		},
+		{
+			name: "request with web search named tool choice",
+			input: &llm.Request{
+				Messages: []llm.Message{
+					{
+						Role: "user",
+						Content: llm.MessageContent{
+							Content: lo.ToPtr("Test"),
+						},
+					},
+				},
+				ToolChoice: &llm.ToolChoice{
+					NamedToolChoice: &llm.NamedToolChoice{
+						Type: llm.ToolTypeWebSearch,
+					},
+				},
+			},
+			validate: func(t *testing.T, result *GenerateContentRequest) {
+				t.Helper()
+				require.NotNil(t, result.ToolConfig)
+				require.NotNil(t, result.ToolConfig.FunctionCallingConfig)
+				require.Equal(t, "AUTO", result.ToolConfig.FunctionCallingConfig.Mode)
+				require.Empty(t, result.ToolConfig.FunctionCallingConfig.AllowedFunctionNames)
+			},
+		},
 	}
 
 	for _, tt := range tests {

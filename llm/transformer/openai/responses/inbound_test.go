@@ -178,6 +178,81 @@ func TestInboundTransformer_TransformRequest(t *testing.T) {
 			},
 		},
 		{
+			name: "request with web search tool",
+			httpReq: &httpclient.Request{
+				Body: []byte(`{
+					"model": "gpt-4o",
+					"input": "What's the weather tomorrow?",
+					"tools": [
+						{
+							"type": "web_search",
+							"external_web_access": true,
+							"max_uses": 3,
+							"allowed_domains": ["weather.com"],
+							"blocked_domains": ["example.com"],
+							"user_location": {
+								"city": "Shanghai",
+								"country": "CN",
+								"region": "Shanghai",
+								"timezone": "Asia/Shanghai",
+								"type": "approximate"
+							}
+						}
+					]
+				}`),
+			},
+			expectError: false,
+			validate: func(t *testing.T, result *llm.Request) {
+				require.Len(t, result.Tools, 1)
+				require.Equal(t, llm.ToolTypeWebSearch, result.Tools[0].Type)
+				require.NotNil(t, result.Tools[0].WebSearch)
+				require.NotNil(t, result.Tools[0].WebSearch.ExternalWebAccess)
+				require.True(t, *result.Tools[0].WebSearch.ExternalWebAccess)
+				require.NotNil(t, result.Tools[0].WebSearch.MaxUses)
+				require.Equal(t, int64(3), *result.Tools[0].WebSearch.MaxUses)
+				require.Equal(t, []string{"weather.com"}, result.Tools[0].WebSearch.AllowedDomains)
+				require.Equal(t, []string{"example.com"}, result.Tools[0].WebSearch.BlockedDomains)
+				require.Equal(t, "Shanghai", result.Tools[0].WebSearch.UserLocation.City)
+				require.Equal(t, "CN", result.Tools[0].WebSearch.UserLocation.Country)
+				require.Equal(t, "Asia/Shanghai", result.Tools[0].WebSearch.UserLocation.Timezone)
+				require.Equal(t, "approximate", result.Tools[0].WebSearch.UserLocation.Type)
+			},
+		},
+		{
+			name: "request with web search tool filters field",
+			httpReq: &httpclient.Request{
+				Body: []byte(`{
+					"model": "gpt-4o",
+					"input": "What's the weather tomorrow?",
+					"tools": [
+						{
+							"type": "web_search",
+							"filters": {
+								"allowed_domains": ["weather.com"],
+								"blocked_domains": ["example.com"]
+							},
+							"user_location": {
+								"city": "Shanghai",
+								"country": "CN",
+								"type": "approximate"
+							}
+						}
+					]
+				}`),
+			},
+			expectError: false,
+			validate: func(t *testing.T, result *llm.Request) {
+				require.Len(t, result.Tools, 1)
+				require.Equal(t, llm.ToolTypeWebSearch, result.Tools[0].Type)
+				require.NotNil(t, result.Tools[0].WebSearch)
+				require.Equal(t, []string{"weather.com"}, result.Tools[0].WebSearch.AllowedDomains)
+				require.Equal(t, []string{"example.com"}, result.Tools[0].WebSearch.BlockedDomains)
+				require.Equal(t, "Shanghai", result.Tools[0].WebSearch.UserLocation.City)
+				require.Equal(t, "CN", result.Tools[0].WebSearch.UserLocation.Country)
+				require.Equal(t, "approximate", result.Tools[0].WebSearch.UserLocation.Type)
+			},
+		},
+		{
 			name: "request with reasoning",
 			httpReq: &httpclient.Request{
 				Body: []byte(`{
@@ -308,6 +383,25 @@ func TestInboundTransformer_TransformRequest(t *testing.T) {
 				require.NotNil(t, result.ToolChoice.NamedToolChoice)
 				require.Equal(t, "function", result.ToolChoice.NamedToolChoice.Type)
 				require.Equal(t, "get_weather", result.ToolChoice.NamedToolChoice.Function.Name)
+			},
+		},
+		{
+			name: "request with web search tool choice",
+			httpReq: &httpclient.Request{
+				Body: []byte(`{
+					"model": "gpt-4o",
+					"input": "Hello",
+					"tool_choice": {
+						"type": "web_search"
+					}
+				}`),
+			},
+			expectError: false,
+			validate: func(t *testing.T, result *llm.Request) {
+				require.NotNil(t, result.ToolChoice)
+				require.NotNil(t, result.ToolChoice.NamedToolChoice)
+				require.Equal(t, llm.ToolTypeWebSearch, result.ToolChoice.NamedToolChoice.Type)
+				require.Equal(t, "", result.ToolChoice.NamedToolChoice.Function.Name)
 			},
 		},
 		{
@@ -1117,6 +1211,28 @@ func TestConvertToolChoiceToLLM(t *testing.T) {
 				require.Equal(t, "get_weather", result.NamedToolChoice.Function.Name)
 			},
 		},
+		{
+			name: "specific web search without name",
+			input: &ToolChoice{
+				Type: lo.ToPtr(llm.ToolTypeWebSearch),
+			},
+			validate: func(t *testing.T, result *llm.ToolChoice) {
+				require.NotNil(t, result)
+				require.Nil(t, result.ToolChoice)
+				require.NotNil(t, result.NamedToolChoice)
+				require.Equal(t, llm.ToolTypeWebSearch, result.NamedToolChoice.Type)
+				require.Equal(t, "", result.NamedToolChoice.Function.Name)
+			},
+		},
+		{
+			name: "specific function without name is ignored",
+			input: &ToolChoice{
+				Type: lo.ToPtr(llm.ToolTypeFunction),
+			},
+			validate: func(t *testing.T, result *llm.ToolChoice) {
+				require.Nil(t, result)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1645,12 +1761,12 @@ func TestInboundTransformer_TransformResponse_WithReasoning(t *testing.T) {
 				require.Equal(t, "reasoning", reasoningOutput.Type)
 				require.Len(t, reasoningOutput.Summary, 1)
 				require.Equal(t, "summary_text", reasoningOutput.Summary[0].Type)
-					require.Equal(t, "I analyzed the problem step by step.", reasoningOutput.Summary[0].Text)
-					require.NotNil(t, reasoningOutput.EncryptedContent)
-					require.Equal(t, shared.OpenAIEncryptedContentPrefix+"encrypted_data_here", *reasoningOutput.EncryptedContent)
+				require.Equal(t, "I analyzed the problem step by step.", reasoningOutput.Summary[0].Text)
+				require.NotNil(t, reasoningOutput.EncryptedContent)
+				require.Equal(t, shared.OpenAIEncryptedContentPrefix+"encrypted_data_here", *reasoningOutput.EncryptedContent)
 
-					// Second output should be message
-					messageOutput := resp.Output[1]
+				// Second output should be message
+				messageOutput := resp.Output[1]
 				require.Equal(t, "message", messageOutput.Type)
 				require.Equal(t, "assistant", messageOutput.Role)
 

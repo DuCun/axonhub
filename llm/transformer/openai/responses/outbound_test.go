@@ -317,6 +317,59 @@ func TestOutboundTransformer_TransformRequest(t *testing.T) {
 			},
 		},
 		{
+			name: "request with web search tool",
+			chatReq: &llm.Request{
+				Model: "gpt-4o",
+				Messages: []llm.Message{
+					{
+						Role: "user",
+						Content: llm.MessageContent{
+							Content: lo.ToPtr("Search tomorrow weather"),
+						},
+					},
+				},
+				Tools: []llm.Tool{
+					{
+						Type: llm.ToolTypeWebSearch,
+						WebSearch: &llm.WebSearch{
+							ExternalWebAccess: lo.ToPtr(true),
+							MaxUses:           lo.ToPtr(int64(3)),
+							AllowedDomains:    []string{"weather.com"},
+							BlockedDomains:    []string{"example.com"},
+							UserLocation: llm.WebSearchToolUserLocation{
+								City:     "Shanghai",
+								Country:  "CN",
+								Region:   "Shanghai",
+								Timezone: "Asia/Shanghai",
+								Type:     "approximate",
+							},
+						},
+					},
+				},
+			},
+			expectError: false,
+			validate: func(t *testing.T, result *httpclient.Request, chatReq *llm.Request) {
+				var req Request
+
+				err := json.Unmarshal(result.Body, &req)
+				require.NoError(t, err)
+				require.Len(t, req.Tools, 1)
+				require.Equal(t, llm.ToolTypeWebSearch, req.Tools[0].Type)
+				require.NotNil(t, req.Tools[0].ExternalWebAccess)
+				require.True(t, *req.Tools[0].ExternalWebAccess)
+				require.NotNil(t, req.Tools[0].MaxUses)
+				require.Equal(t, int64(3), *req.Tools[0].MaxUses)
+				require.NotNil(t, req.Tools[0].Filters)
+				require.Equal(t, []string{"weather.com"}, req.Tools[0].Filters.AllowedDomains)
+				require.Equal(t, []string{"example.com"}, req.Tools[0].Filters.BlockedDomains)
+				require.NotNil(t, req.Tools[0].UserLocation)
+				require.Equal(t, "Shanghai", req.Tools[0].UserLocation.City)
+				require.Equal(t, "CN", req.Tools[0].UserLocation.Country)
+				require.Equal(t, "Asia/Shanghai", req.Tools[0].UserLocation.Timezone)
+				require.Equal(t, "approximate", req.Tools[0].UserLocation.Type)
+			},
+		},
+		{
 			name: "request with unsupported tool type is skipped",
 			chatReq: &llm.Request{
 				Model: "gpt-4o",
@@ -516,6 +569,36 @@ func TestOutboundTransformer_TransformRequest(t *testing.T) {
 				require.NotNil(t, req.ToolChoice)
 				require.NotNil(t, req.ToolChoice.Mode)
 				require.Equal(t, "auto", *req.ToolChoice.Mode)
+			},
+		},
+		{
+			name: "request with web search tool choice",
+			chatReq: &llm.Request{
+				Model: "gpt-4o",
+				Messages: []llm.Message{
+					{
+						Role: "user",
+						Content: llm.MessageContent{
+							Content: lo.ToPtr("Hello"),
+						},
+					},
+				},
+				ToolChoice: &llm.ToolChoice{
+					NamedToolChoice: &llm.NamedToolChoice{
+						Type: llm.ToolTypeWebSearch,
+					},
+				},
+			},
+			expectError: false,
+			validate: func(t *testing.T, result *httpclient.Request, chatReq *llm.Request) {
+				var req Request
+
+				err := json.Unmarshal(result.Body, &req)
+				require.NoError(t, err)
+				require.NotNil(t, req.ToolChoice)
+				require.NotNil(t, req.ToolChoice.Type)
+				require.Equal(t, llm.ToolTypeWebSearch, *req.ToolChoice.Type)
+				require.Nil(t, req.ToolChoice.Name)
 			},
 		},
 		{

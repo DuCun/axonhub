@@ -104,6 +104,21 @@ func TestConvertToolChoiceToAnthropic(t *testing.T) {
 			},
 		},
 		{
+			name: "web search named choice -> tool + web_search name",
+			input: &llm.ToolChoice{
+				NamedToolChoice: &llm.NamedToolChoice{
+					Type: llm.ToolTypeWebSearch,
+				},
+			},
+			validate: func(t *testing.T, got *ToolChoice) {
+				t.Helper()
+				require.NotNil(t, got)
+				require.Equal(t, "tool", got.Type)
+				require.NotNil(t, got.Name)
+				require.Equal(t, WebSearchFunctionName, *got.Name)
+			},
+		},
+		{
 			name:  "nil -> nil",
 			input: nil,
 			validate: func(t *testing.T, got *ToolChoice) {
@@ -130,10 +145,20 @@ func TestConvertToolChoiceToAnthropic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := convertToolChoiceToAnthropic(tt.input)
+			got := convertToolChoiceToAnthropic(tt.input, &Config{Type: PlatformDirect})
 			tt.validate(t, got)
 		})
 	}
+}
+
+func TestConvertToolChoiceToAnthropic_WebSearchPlatformSupport(t *testing.T) {
+	got := convertToolChoiceToAnthropic(&llm.ToolChoice{
+		NamedToolChoice: &llm.NamedToolChoice{
+			Type: llm.ToolTypeWebSearch,
+		},
+	}, &Config{Type: PlatformDeepSeek})
+
+	require.Nil(t, got)
 }
 
 func TestOutboundTransformer_ToolArgsRepair(t *testing.T) {

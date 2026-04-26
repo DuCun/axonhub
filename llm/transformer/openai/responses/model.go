@@ -22,7 +22,7 @@ type ImageGeneration struct {
 }
 
 type Tool struct {
-	// Any of "function", "image_generation", "custom".
+	// Any of "function", "image_generation", "web_search", "custom".
 	Type        string `json:"type,omitempty"`
 	Name        string `json:"name,omitempty"`
 	Description string `json:"description,omitempty"`
@@ -53,6 +53,32 @@ type Tool struct {
 	Quality string `json:"quality,omitempty"`
 	// This field is for ImageGeneration
 	Size string `json:"size,omitempty"`
+
+	// This field is for WebSearch
+	ExternalWebAccess *bool `json:"external_web_access,omitempty"`
+	// This field is for WebSearch
+	MaxUses *int64 `json:"max_uses,omitempty"`
+	// This field is for WebSearch.
+	// OpenAI Responses currently nests domain filters under `filters`.
+	Filters *WebSearchFilters `json:"filters,omitempty"`
+	// Legacy flat fields kept for inbound compatibility with older payload shapes.
+	AllowedDomains []string `json:"allowed_domains,omitempty"`
+	BlockedDomains []string `json:"blocked_domains,omitempty"`
+	// This field is for WebSearch
+	UserLocation *WebSearchUserLocation `json:"user_location,omitempty"`
+}
+
+type WebSearchFilters struct {
+	AllowedDomains []string `json:"allowed_domains,omitempty"`
+	BlockedDomains []string `json:"blocked_domains,omitempty"`
+}
+
+type WebSearchUserLocation struct {
+	City     string `json:"city,omitempty"`
+	Country  string `json:"country,omitempty"`
+	Region   string `json:"region,omitempty"`
+	Timezone string `json:"timezone,omitempty"`
+	Type     string `json:"type,omitempty"`
 }
 
 // CustomToolFormat represents the format definition for a custom tool.
@@ -77,7 +103,7 @@ type Request struct {
 
 	// Input can be a string prompt or an array of input items.
 	Input Input `json:"input"`
-	// Tools includes the function/image_generation tools.
+	// Tools includes function, image_generation, web_search, and custom tools.
 	Tools []Tool `json:"tools,omitzero"`
 	// Parallel tool calls preference.
 	ParallelToolCalls *bool `json:"parallel_tool_calls,omitempty"`

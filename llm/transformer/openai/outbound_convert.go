@@ -66,16 +66,24 @@ func RequestFromLLM(r *llm.Request) *Request {
 
 	// Convert ToolChoice
 	if r.ToolChoice != nil {
-		req.ToolChoice = &ToolChoice{
-			ToolChoice: r.ToolChoice.ToolChoice,
-		}
-		if r.ToolChoice.NamedToolChoice != nil {
-			req.ToolChoice.NamedToolChoice = &NamedToolChoice{
-				Type: r.ToolChoice.NamedToolChoice.Type,
-				Function: ToolFunction{
-					Name: r.ToolChoice.NamedToolChoice.Function.Name,
+		switch {
+		case r.ToolChoice.ToolChoice != nil:
+			req.ToolChoice = &ToolChoice{
+				ToolChoice: r.ToolChoice.ToolChoice,
+			}
+		case r.ToolChoice.NamedToolChoice != nil && r.ToolChoice.NamedToolChoice.Type == llm.ToolTypeFunction &&
+			r.ToolChoice.NamedToolChoice.Function.Name != "":
+			req.ToolChoice = &ToolChoice{
+				NamedToolChoice: &NamedToolChoice{
+					Type: r.ToolChoice.NamedToolChoice.Type,
+					Function: ToolFunction{
+						Name: r.ToolChoice.NamedToolChoice.Function.Name,
+					},
 				},
 			}
+		default:
+			// Drop unsupported typed tool choices (for example Responses web_search)
+			// when targeting Chat Completions style outbound transformers.
 		}
 	}
 

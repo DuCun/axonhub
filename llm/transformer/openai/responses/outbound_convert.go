@@ -352,6 +352,37 @@ func convertCustomToTool(src llm.Tool) Tool {
 	return tool
 }
 
+func convertWebSearchToTool(src llm.Tool) Tool {
+	tool := Tool{
+		Type: llm.ToolTypeWebSearch,
+	}
+	if src.WebSearch != nil {
+		tool.ExternalWebAccess = src.WebSearch.ExternalWebAccess
+		tool.MaxUses = src.WebSearch.MaxUses
+		if len(src.WebSearch.AllowedDomains) > 0 || len(src.WebSearch.BlockedDomains) > 0 {
+			tool.Filters = &WebSearchFilters{
+				AllowedDomains: src.WebSearch.AllowedDomains,
+				BlockedDomains: src.WebSearch.BlockedDomains,
+			}
+		}
+		if src.WebSearch.UserLocation.City != "" ||
+			src.WebSearch.UserLocation.Country != "" ||
+			src.WebSearch.UserLocation.Region != "" ||
+			src.WebSearch.UserLocation.Timezone != "" ||
+			src.WebSearch.UserLocation.Type != "" {
+			tool.UserLocation = &WebSearchUserLocation{
+				City:     src.WebSearch.UserLocation.City,
+				Country:  src.WebSearch.UserLocation.Country,
+				Region:   src.WebSearch.UserLocation.Region,
+				Timezone: src.WebSearch.UserLocation.Timezone,
+				Type:     src.WebSearch.UserLocation.Type,
+			}
+		}
+	}
+
+	return tool
+}
+
 // convertFunctionToTool converts an llm.Tool function to Responses API Tool format.
 func convertFunctionToTool(src llm.Tool) Tool {
 	tool := Tool{
@@ -431,7 +462,9 @@ func convertToolChoice(src *llm.ToolChoice) *ToolChoice {
 	} else if src.NamedToolChoice != nil {
 		// Specific tool choice
 		result.Type = &src.NamedToolChoice.Type
-		result.Name = &src.NamedToolChoice.Function.Name
+		if src.NamedToolChoice.Type == llm.ToolTypeFunction && src.NamedToolChoice.Function.Name != "" {
+			result.Name = &src.NamedToolChoice.Function.Name
+		}
 	}
 
 	return result

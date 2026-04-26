@@ -349,12 +349,11 @@ func convertLLMToolChoiceToGeminiToolConfig(tc *llm.ToolChoice) *ToolConfig {
 		default:
 			fcc.Mode = "AUTO"
 		}
-	} else if tc.NamedToolChoice != nil {
+	} else if tc.NamedToolChoice != nil && tc.NamedToolChoice.Type == llm.ToolTypeFunction &&
+		tc.NamedToolChoice.Function.Name != "" {
 		// Named tool choice - specific function
 		fcc.Mode = "ANY"
-		if tc.NamedToolChoice.Function.Name != "" {
-			fcc.AllowedFunctionNames = []string{tc.NamedToolChoice.Function.Name}
-		}
+		fcc.AllowedFunctionNames = []string{tc.NamedToolChoice.Function.Name}
 	} else {
 		fcc.Mode = "AUTO"
 	}

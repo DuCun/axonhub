@@ -303,11 +303,17 @@ func convertToolChoiceToLLM(src *ToolChoice) *llm.ToolChoice {
 
 	if src.Mode != nil {
 		result.ToolChoice = src.Mode
-	} else if src.Type != nil && src.Name != nil {
+	} else if src.Type != nil {
+		if *src.Type != llm.ToolTypeWebSearch && (src.Name == nil || *src.Name == "") {
+			return nil
+		}
+
+		toolName := lo.FromPtr(src.Name)
+
 		result.NamedToolChoice = &llm.NamedToolChoice{
 			Type: *src.Type,
 			Function: llm.ToolFunction{
-				Name: *src.Name,
+				Name: toolName,
 			},
 		}
 	}
@@ -729,6 +735,39 @@ func convertToolsToLLM(tools []Tool) ([]llm.Tool, error) {
 					Quality:           tool.Quality,
 					Size:              tool.Size,
 				},
+			})
+
+		case llm.ToolTypeWebSearch:
+			allowedDomains := tool.AllowedDomains
+			blockedDomains := tool.BlockedDomains
+			if tool.Filters != nil {
+				if len(tool.Filters.AllowedDomains) > 0 {
+					allowedDomains = tool.Filters.AllowedDomains
+				}
+				if len(tool.Filters.BlockedDomains) > 0 {
+					blockedDomains = tool.Filters.BlockedDomains
+				}
+			}
+
+			webSearch := &llm.WebSearch{
+				ExternalWebAccess: tool.ExternalWebAccess,
+				MaxUses:           tool.MaxUses,
+				AllowedDomains:    allowedDomains,
+				BlockedDomains:    blockedDomains,
+			}
+			if tool.UserLocation != nil {
+				webSearch.UserLocation = llm.WebSearchToolUserLocation{
+					City:     tool.UserLocation.City,
+					Country:  tool.UserLocation.Country,
+					Region:   tool.UserLocation.Region,
+					Timezone: tool.UserLocation.Timezone,
+					Type:     tool.UserLocation.Type,
+				}
+			}
+
+			result = append(result, llm.Tool{
+				Type:      llm.ToolTypeWebSearch,
+				WebSearch: webSearch,
 			})
 
 		case "custom":

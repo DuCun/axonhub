@@ -19,7 +19,7 @@ func convertToAnthropicRequest(chatReq *llm.Request) *MessageRequest {
 func convertToAnthropicRequestWithConfig(chatReq *llm.Request, config *Config, scope shared.TransportScope) *MessageRequest {
 	req := buildBaseRequest(chatReq, config)
 	req.Tools = convertToolsAnthropic(chatReq.Tools, config)
-	req.ToolChoice = convertToolChoiceToAnthropic(chatReq.ToolChoice)
+	req.ToolChoice = convertToolChoiceToAnthropic(chatReq.ToolChoice, config)
 	req.Messages = convertMessages(chatReq, scope, config)
 	req.StopSequences = convertStopSequences(chatReq.Stop)
 
@@ -197,7 +197,7 @@ func convertToolsAnthropic(tools []llm.Tool, config *Config) []Tool {
 }
 
 // convertToolChoiceToAnthropic converts llm.ToolChoice to Anthropic ToolChoice.
-func convertToolChoiceToAnthropic(src *llm.ToolChoice) *ToolChoice {
+func convertToolChoiceToAnthropic(src *llm.ToolChoice, config *Config) *ToolChoice {
 	if src == nil {
 		return nil
 	}
@@ -217,7 +217,22 @@ func convertToolChoiceToAnthropic(src *llm.ToolChoice) *ToolChoice {
 	}
 
 	// Named tool_choice: {type: "function", function: {name: "xxx"}}
-	if src.NamedToolChoice != nil && src.NamedToolChoice.Function.Name != "" {
+	if src.NamedToolChoice != nil {
+		if src.NamedToolChoice.Type == llm.ToolTypeWebSearch {
+			if !supportsAnthropicNativeTools(config) {
+				return nil
+			}
+
+			return &ToolChoice{
+				Type: "tool",
+				Name: lo.ToPtr(WebSearchFunctionName),
+			}
+		}
+
+		if src.NamedToolChoice.Function.Name == "" {
+			return nil
+		}
+
 		return &ToolChoice{
 			Type: "tool",
 			Name: lo.ToPtr(src.NamedToolChoice.Function.Name),
