@@ -26,6 +26,12 @@
    git push origin feature/your-feature-name
    ```
 
+## 发行通道
+
+- 推送到 `unstable` 后会先运行 `Test` workflow；测试成功后，GitHub Actions 会自动为该提交发布一版 `edge` 预发布以及对应的 Docker 镜像。
+- `edge` 通道用于主线最新提交验证。GitHub 侧保持单一可滚动的 `edge` 预发布，Docker 同时发布 `xiaomoy/axonhub:edge` 和 `xiaomoy/axonhub:edge-<shortsha>`。
+- 正式版仍然只由 tag 驱动。只有推送 `v*` tag 时，才会触发原有的 GitHub Release 和 Docker 发布流程。
+
 ## 提交前检查（prek）
 
 仓库内已包含 `.pre-commit-config.yaml`。`prek` 可以作为 `pre-commit` 的 drop-in 替代品使用。

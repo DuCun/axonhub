@@ -62,7 +62,7 @@ EOF
 
 get_recent_stable_tags() {
     local count=${1:-3}
-    git tag --sort=-version:refname | grep -v -E '(beta|rc|alpha)' | head -n "$count"
+    git tag --sort=-version:refname | grep '^v[0-9]' | grep -v -E '(beta|rc|alpha)' | head -n "$count"
 }
 
 main() {

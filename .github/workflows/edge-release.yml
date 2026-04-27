@@ -1,0 +1,258 @@
+name: Edge Release
+
+on:
+  workflow_run:
+    workflows:
+      - Test
+    types:
+      - completed
+    branches:
+      - unstable
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  prepare:
+    name: Prepare edge metadata
+    if: >-
+      ${{
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push'
+      }}
+    runs-on: ubuntu-latest
+    outputs:
+      edge_tag: ${{ steps.meta.outputs.edge_tag }}
+      edge_version: ${{ steps.meta.outputs.edge_version }}
+      edge_name: ${{ steps.meta.outputs.edge_name }}
+      head_sha: ${{ steps.meta.outputs.head_sha }}
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-tags: true
+
+      - name: Compute edge identifiers
+        id: meta
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          SHORT_SHA="${HEAD_SHA::7}"
+          EDGE_TAG="edge"
+          EDGE_NAME="edge"
+
+          STABLE_BASE_TAG="$(git tag --sort=-version:refname | grep '^v[0-9]' | grep -v -E '(alpha|beta|rc)' | head -n 1)"
+          if [ -z "$STABLE_BASE_TAG" ]; then
+            STABLE_BASE_TAG="$(cat internal/build/VERSION 2>/dev/null || echo 'v0.0.0')"
+          fi
+
+          BASE_CORE="${STABLE_BASE_TAG#v}"
+          BASE_CORE="${BASE_CORE%%-*}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_CORE"
+          NEXT_PATCH=$((PATCH + 1))
+          EDGE_VERSION="v${MAJOR}.${MINOR}.${NEXT_PATCH}-edge.${RUN_NUMBER}+${SHORT_SHA}"
+
+          {
+            echo "edge_tag=${EDGE_TAG}"
+            echo "edge_version=${EDGE_VERSION}"
+            echo "edge_name=${EDGE_NAME}"
+            echo "head_sha=${HEAD_SHA}"
+            echo "short_sha=${SHORT_SHA}"
+          } >> "$GITHUB_OUTPUT"
+
+  github_prerelease:
+    name: Publish GitHub edge prerelease
+    needs: prepare
+    runs-on: ubuntu-latest
+    concurrency:
+      group: edge-release-github
+      cancel-in-progress: true
+    env:
+      EDGE_TAG: ${{ needs.prepare.outputs.edge_tag }}
+      EDGE_VERSION: ${{ needs.prepare.outputs.edge_version }}
+      EDGE_NAME: ${{ needs.prepare.outputs.edge_name }}
+      HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+      SHORT_SHA: ${{ needs.prepare.outputs.short_sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.HEAD_SHA }}
+          fetch-tags: true
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        run: pnpm install
+        working-directory: frontend
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Write edge VERSION
+        run: |
+          echo "$EDGE_VERSION" > internal/build/VERSION
+
+      - name: Build edge archives with GoReleaser snapshot mode
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean --skip=publish --skip=announce --skip=validate --snapshot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EDGE_VERSION: ${{ env.EDGE_VERSION }}
+
+      - name: Move edge tag to current commit
+        run: |
+          git tag -f "$EDGE_TAG" "$HEAD_SHA"
+          git push origin "refs/tags/$EDGE_TAG" --force
+
+      - name: Publish edge prerelease
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ env.EDGE_TAG }}
+          commit: ${{ env.HEAD_SHA }}
+          name: ${{ env.EDGE_NAME }}
+          prerelease: true
+          allowUpdates: true
+          updateOnlyUnreleased: true
+          removeArtifacts: true
+          replacesArtifacts: true
+          artifactErrorsFailBuild: true
+          artifacts: .builds/*.zip,.builds/checksums.txt,.builds/metadata.json,config.schema.json
+          body: |
+            Automated edge prerelease for unstable at commit ${{ env.SHORT_SHA }}.
+            Internal build version: `${{ env.EDGE_VERSION }}`.
+
+  docker_edge:
+    name: Publish Docker edge image
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      EDGE_VERSION: ${{ needs.prepare.outputs.edge_version }}
+      HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+      SHORT_SHA: ${{ needs.prepare.outputs.short_sha }}
+    steps:
+      - name: Check out edge commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: ${{ env.HEAD_SHA }}
+
+      - name: Write edge VERSION
+        run: |
+          echo "$EDGE_VERSION" > internal/build/VERSION
+          echo "Building edge ${SHORT_SHA} for ${{ matrix.arch }}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata (labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            xiaomoy/axonhub
+
+      - name: Build & push single-arch edge image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: |
+            xiaomoy/axonhub:edge-${{ env.SHORT_SHA }}-${{ matrix.arch }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+
+  docker_edge_immutable_manifest:
+    name: Create immutable edge manifests
+    needs:
+      - prepare
+      - docker_edge
+    runs-on: ubuntu-latest
+    env:
+      SHORT_SHA: ${{ needs.prepare.outputs.short_sha }}
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create & push immutable edge manifest
+        run: |
+          docker buildx imagetools create \
+            -t xiaomoy/axonhub:edge-${SHORT_SHA} \
+            xiaomoy/axonhub:edge-${SHORT_SHA}-amd64 \
+            xiaomoy/axonhub:edge-${SHORT_SHA}-arm64
+
+  docker_edge_moving_tags:
+    name: Update moving edge tags
+    needs:
+      - prepare
+      - docker_edge_immutable_manifest
+    runs-on: ubuntu-latest
+    concurrency:
+      group: edge-release-docker
+      cancel-in-progress: true
+    env:
+      SHORT_SHA: ${{ needs.prepare.outputs.short_sha }}
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Update moving edge manifest
+        run: |
+          docker buildx imagetools create \
+            -t xiaomoy/axonhub:edge \
+            xiaomoy/axonhub:edge-${SHORT_SHA}-amd64 \
+            xiaomoy/axonhub:edge-${SHORT_SHA}-arm64
+          docker buildx imagetools create \
+            -t xiaomoy/axonhub:edge-amd64 \
+            xiaomoy/axonhub:edge-${SHORT_SHA}-amd64
+          docker buildx imagetools create \
+            -t xiaomoy/axonhub:edge-arm64 \
+            xiaomoy/axonhub:edge-${SHORT_SHA}-arm64

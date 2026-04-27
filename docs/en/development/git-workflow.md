@@ -26,6 +26,12 @@
    git push origin feature/your-feature-name
    ```
 
+## Release Channels
+
+- Pushes to `unstable` run the `Test` workflow first. If it succeeds, GitHub Actions automatically publishes an `edge` prerelease and Docker images for that exact commit.
+- The `edge` channel is intended for branch-tip validation. GitHub keeps a single moving prerelease tag named `edge`, while Docker publishes both `xiaomoy/axonhub:edge` and `xiaomoy/axonhub:edge-<shortsha>`.
+- Stable releases remain tag-driven. Only pushes of `v*` tags trigger the regular GitHub release and Docker publish workflows.
+
 ## Pre-commit (prek)
 
 This repository includes a `.pre-commit-config.yaml`. `prek` is a drop-in replacement for `pre-commit`.

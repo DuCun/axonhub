@@ -18,7 +18,7 @@ builds:
     flags:
       - -tags=nomsgpack
     ldflags:
-      - -s -w -X github.com/looplj/axonhub/internal/build.Version={{ .Tag }}
+      - -s -w -X github.com/looplj/axonhub/internal/build.Version={{ if .Env.EDGE_VERSION }}{{ .Env.EDGE_VERSION }}{{ else }}{{ .Tag }}{{ end }}
       - -s -w -X github.com/looplj/axonhub/internal/build.Commit={{ .Commit }}
       - -s -w -X github.com/looplj/axonhub/internal/build.BuildTime={{ .Date }}
     env:
@@ -142,7 +142,7 @@ checksum:
   name_template: 'checksums.txt'
 
 snapshot:
-  version_template: '{{ incpatch .Version }}-snapshot'
+  version_template: '{{ if .Env.EDGE_VERSION }}{{ .Env.EDGE_VERSION }}{{ else }}{{ incpatch .Version }}-snapshot{{ end }}'
 
 changelog:
   sort: asc
