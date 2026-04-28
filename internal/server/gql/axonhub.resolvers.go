@@ -733,6 +733,16 @@ func (r *queryResolver) CountChannelsByType(ctx context.Context, input CountChan
 	return typeCounts, nil
 }
 
+// CountAPIKeysByStatus is the resolver for the countAPIKeysByStatus field.
+func (r *queryResolver) CountAPIKeysByStatus(ctx context.Context, where *ent.APIKeyWhereInput) ([]*biz.APIKeyStatusCount, error) {
+	counts, err := r.apiKeyService.CountAPIKeysByStatus(ctx, where)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count api keys by status: %w", err)
+	}
+
+	return counts, nil
+}
+
 // QueryChannels is the resolver for the queryChannels field.
 func (r *queryResolver) QueryChannels(ctx context.Context, input biz.QueryChannelsInput) (*ent.ChannelConnection, error) {
 	if input.OrderBy != nil && input.OrderBy.Field.String() == "CREATED_AT" {

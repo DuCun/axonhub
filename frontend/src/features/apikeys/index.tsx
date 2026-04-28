@@ -12,7 +12,7 @@ import { ApiKeysDialogs } from './components/apikeys-dialogs';
 import { ApiKeysPrimaryButtons } from './components/apikeys-primary-buttons';
 import { ApiKeysTable } from './components/apikeys-table';
 import ApiKeysProvider from './context/apikeys-context';
-import { useApiKeys } from './data/apikeys';
+import { useApiKeys, useApiKeyStatusCounts } from './data/apikeys';
 import { ApiKeyType } from './data/schema';
 
 type ApiKeyTabKey = ApiKeyType | 'all';
@@ -75,11 +75,54 @@ function ApiKeysContent() {
     return Object.keys(where).length > 0 ? where : undefined;
   })();
 
+  const statusCountWhereClause = (() => {
+    const where: Record<string, unknown> = {};
+
+    if (debouncedSearchFilter) {
+      where.or = [
+        { nameContainsFold: debouncedSearchFilter },
+        { keyContainsFold: debouncedSearchFilter },
+      ];
+    }
+
+    if (activeTab !== 'all') {
+      where.typeIn = [activeTab];
+    }
+
+    if (userFilter.length > 0 && userFilter[0]) {
+      where.userID = userFilter[0];
+    }
+
+    if (where.or && (where.typeIn || where.userID)) {
+      const orCondition = where.or;
+      delete where.or;
+      return {
+        and: [
+          { or: orCondition },
+          where,
+        ],
+      };
+    }
+
+    return Object.keys(where).length > 0 ? where : undefined;
+  })();
+
   const { data, isLoading } = useApiKeys({
     ...paginationArgs,
     where: whereClause,
     orderBy: { field: 'CREATED_AT', direction: 'DESC' },
   });
+
+  const { data: statusCountsData } = useApiKeyStatusCounts(statusCountWhereClause);
+
+  const statusCounts = React.useMemo(
+    () =>
+      (statusCountsData ?? []).reduce<Record<string, number>>((acc, item) => {
+        acc[item.status] = item.count;
+        return acc;
+      }, {}),
+    [statusCountsData]
+  );
 
   const tableData = React.useMemo(
     () => (data?.edges?.map((edge) => edge.node) ?? []),
@@ -154,6 +197,7 @@ function ApiKeysContent() {
           onDateRangeChange={setDateRange}
           onResetFilters={handleResetFilters}
           canWrite={apiKeyPermissions.canWrite}
+          statusCounts={statusCounts}
         />
       </div>
     </div>

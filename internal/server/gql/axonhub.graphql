@@ -488,6 +488,11 @@ type ChannelTypeCount {
   count: Int!
 }
 
+type APIKeyStatusCount {
+  status: APIKeyStatus!
+  count: Int!
+}
+
 input AddUserToProjectInput {
   projectId: ID!
   userId: ID!
@@ -898,6 +903,7 @@ extend type Query {
   allChannelSummarys(includeArchived: Boolean): [Channel!]!
   allChannelTags: [String!]!
   countChannelsByType(input: CountChannelsByTypeInput!): [ChannelTypeCount!]!
+  countAPIKeysByStatus(where: APIKeyWhereInput): [APIKeyStatusCount!]!
   """
   Query channels with extra options
   hasTag: String

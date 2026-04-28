@@ -9,6 +9,7 @@ import { useRequestPermissions } from '../../../hooks/useRequestPermissions';
 import type {
   ApiKey,
   ApiKeyConnection,
+  ApiKeyStatusCount,
   ApiKeyProfileQuotaUsage,
   ApiKeyProfileTemplate,
   ApiKeyTokenUsageStats,
@@ -18,9 +19,23 @@ import type {
   UpdateApiKeyProfileTemplateInput,
   UpdateApiKeyProfilesInput,
 } from './schema';
-import { apiKeyConnectionSchema, apiKeyProfileQuotaUsageSchema, apiKeyProfileTemplateSchema, apiKeySchema, apiKeyTokenUsageStatsSchema } from './schema';
+import {
+  apiKeyConnectionSchema,
+  apiKeyProfileQuotaUsageSchema,
+  apiKeyProfileTemplateSchema,
+  apiKeySchema,
+  apiKeyStatusCountSchema,
+  apiKeyTokenUsageStatsSchema,
+} from './schema';
 
 const NOAUTH_API_KEY_TYPE = 'noauth';
+
+function buildAPIKeyWhereWithDefaults(where?: Record<string, unknown>) {
+  return {
+    ...where,
+    typeNotIn: [NOAUTH_API_KEY_TYPE],
+  };
+}
 
 // Dynamic GraphQL query builders
 function buildApiKeysQuery(permissions: { canViewUsers: boolean }) {
@@ -264,6 +279,15 @@ const APIKEY_TOKEN_USAGE_STATS_QUERY = `
   }
 `;
 
+const APIKEY_STATUS_COUNTS_QUERY = `
+  query CountAPIKeysByStatus($where: APIKeyWhereInput) {
+    countAPIKeysByStatus(where: $where) {
+      status
+      count
+    }
+  }
+`;
+
 const APIKEY_PROFILE_TEMPLATES_QUERY = `
   query ApiKeyProfileTemplates($where: APIKeyProfileTemplateWhereInput) {
     apiKeyProfileTemplates(first: 100, where: $where) {
@@ -404,10 +428,7 @@ export function useApiKeys(
         const headers = selectedProjectId ? { 'X-Project-ID': selectedProjectId } : undefined;
         const mergedVariables = {
           ...variables,
-          where: {
-            ...variables?.where,
-            typeNotIn: [NOAUTH_API_KEY_TYPE],
-          },
+          where: buildAPIKeyWhereWithDefaults(variables?.where),
         };
         const data = await graphqlRequest<{ apiKeys: ApiKeyConnection }>(query, mergedVariables, headers);
         return apiKeyConnectionSchema.parse(data?.apiKeys);
@@ -417,6 +438,43 @@ export function useApiKeys(
       }
     },
     enabled: !options?.disableAutoFetch && !!selectedProjectId, // Only query when a project is selected
+  });
+}
+
+export function useApiKeyStatusCounts(
+  where?: {
+    nameContainsFold?: string;
+    userID?: string;
+    projectID?: string;
+    or?: unknown;
+    and?: unknown;
+    [key: string]: unknown;
+  },
+  options?: {
+    disableAutoFetch?: boolean;
+  }
+) {
+  const { t } = useTranslation();
+  const { handleError } = useErrorHandler();
+  const selectedProjectId = useSelectedProjectId();
+
+  return useQuery({
+    queryKey: ['apiKeyStatusCounts', where, selectedProjectId],
+    queryFn: async () => {
+      try {
+        const headers = selectedProjectId ? { 'X-Project-ID': selectedProjectId } : undefined;
+        const data = await graphqlRequest<{ countAPIKeysByStatus: ApiKeyStatusCount[] }>(
+          APIKEY_STATUS_COUNTS_QUERY,
+          { where: buildAPIKeyWhereWithDefaults(where) },
+          headers
+        );
+        return apiKeyStatusCountSchema.array().parse(data.countAPIKeysByStatus);
+      } catch (error) {
+        handleError(error, t('common.errors.internalServerError'));
+        throw error;
+      }
+    },
+    enabled: !options?.disableAutoFetch && !!selectedProjectId,
   });
 }
 
@@ -531,6 +589,7 @@ export function useCreateApiKey() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['apiKeys'] });
+      queryClient.invalidateQueries({ queryKey: ['apiKeyStatusCounts'] });
       toast.success(t('apikeys.messages.createSuccess'));
     },
     onError: (error) => {
@@ -554,6 +613,7 @@ export function useUpdateApiKey() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['apiKeys'] });
+      queryClient.invalidateQueries({ queryKey: ['apiKeyStatusCounts'] });
       queryClient.invalidateQueries({ queryKey: ['apiKey', variables.id] });
       toast.success(t('apikeys.messages.updateSuccess'));
     },
@@ -575,6 +635,7 @@ export function useUpdateApiKeyStatus() {
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['apiKeys'] });
+      queryClient.invalidateQueries({ queryKey: ['apiKeyStatusCounts'] });
       queryClient.invalidateQueries({ queryKey: ['apiKey', variables.id] });
       const statusText =
         data.updateAPIKeyStatus.status === 'enabled'
@@ -602,6 +663,7 @@ export function useUpdateApiKeyProfiles() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['apiKeys'] });
+      queryClient.invalidateQueries({ queryKey: ['apiKeyStatusCounts'] });
       queryClient.invalidateQueries({ queryKey: ['apiKey', variables.id] });
       toast.success(t('apikeys.messages.profilesUpdateSuccess'));
     },
@@ -624,6 +686,7 @@ export function useBulkDisableApiKeys() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['apiKeys'] });
+      queryClient.invalidateQueries({ queryKey: ['apiKeyStatusCounts'] });
       toast.success(t('apikeys.messages.bulkDisableSuccess', { count: variables.length }));
     },
     onError: () => {
@@ -632,7 +695,7 @@ export function useBulkDisableApiKeys() {
   });
 }
 
-export function useBulkEnableApiKeys() {
+export function useBulkEnableApiKeys(mode: 'enable' | 'restore' | 'mixed' = 'enable', count?: number) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const selectedProjectId = useSelectedProjectId();
@@ -645,7 +708,19 @@ export function useBulkEnableApiKeys() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['apiKeys'] });
-      toast.success(t('apikeys.messages.bulkEnableSuccess', { count: variables.length }));
+      queryClient.invalidateQueries({ queryKey: ['apiKeyStatusCounts'] });
+      toast.success(
+        t(
+          mode === 'restore'
+            ? 'apikeys.messages.bulkRestoreSuccess'
+            : mode === 'mixed'
+              ? 'apikeys.messages.bulkEnableMixedSuccess'
+            : 'apikeys.messages.bulkEnableSuccess',
+          {
+            count: count ?? variables.length,
+          }
+        )
+      );
     },
     onError: () => {
       toast.error(t('common.errors.internalServerError'));
@@ -666,6 +741,7 @@ export function useBulkArchiveApiKeys() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['apiKeys'] });
+      queryClient.invalidateQueries({ queryKey: ['apiKeyStatusCounts'] });
       toast.success(t('apikeys.messages.bulkArchiveSuccess', { count: variables.length }));
     },
     onError: () => {

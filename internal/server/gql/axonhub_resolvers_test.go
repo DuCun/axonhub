@@ -10,9 +10,11 @@ import (
 	"github.com/looplj/axonhub/internal/authz"
 	"github.com/looplj/axonhub/internal/contexts"
 	"github.com/looplj/axonhub/internal/ent"
+	"github.com/looplj/axonhub/internal/ent/apikey"
 	"github.com/looplj/axonhub/internal/ent/channel"
 	"github.com/looplj/axonhub/internal/ent/enttest"
 	"github.com/looplj/axonhub/internal/objects"
+	"github.com/looplj/axonhub/internal/server/biz"
 )
 
 func setupTestQueryResolver(t *testing.T) (*queryResolver, context.Context, *ent.Client) {
@@ -24,6 +26,11 @@ func setupTestQueryResolver(t *testing.T) (*queryResolver, context.Context, *ent
 	ctx = authz.WithTestBypass(ctx)
 
 	resolver := &queryResolver{&Resolver{client: client}}
+	resolver.apiKeyService = biz.NewAPIKeyService(biz.APIKeyServiceParams{
+		Ent:            client,
+		ProjectService: &biz.ProjectService{AbstractService: &biz.AbstractService{}},
+		KeyPrefix:      "ah",
+	})
 
 	return resolver, ctx, client
 }
@@ -123,4 +130,68 @@ func TestQueryResolver_AllChannelTags_ProjectProfileFiltersVisibleTags(t *testin
 	tags, err := resolver.AllChannelTags(projectCtx)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{"shared", "visible"}, lo.Uniq(tags))
+}
+
+func TestQueryResolver_CountAPIKeysByStatus_IncludesArchivedOutsideDefaultListFilter(t *testing.T) {
+	resolver, ctx, client := setupTestQueryResolver(t)
+	defer client.Close()
+
+	projectEntity, err := client.Project.Create().
+		SetName("Project API Keys").
+		SetDescription("test project").
+		Save(ctx)
+	require.NoError(t, err)
+
+	owner, err := client.User.Create().
+		SetEmail("owner@example.com").
+		SetPassword("password").
+		SetFirstName("Owner").
+		SetLastName("User").
+		SetIsOwner(true).
+		Save(ctx)
+	require.NoError(t, err)
+
+	_, err = client.APIKey.Create().
+		SetName("Enabled Key").
+		SetKey("ak-enabled").
+		SetUserID(owner.ID).
+		SetProjectID(projectEntity.ID).
+		SetType(apikey.TypeUser).
+		SetStatus(apikey.StatusEnabled).
+		Save(ctx)
+	require.NoError(t, err)
+
+	_, err = client.APIKey.Create().
+		SetName("Disabled Key").
+		SetKey("ak-disabled").
+		SetUserID(owner.ID).
+		SetProjectID(projectEntity.ID).
+		SetType(apikey.TypeUser).
+		SetStatus(apikey.StatusDisabled).
+		Save(ctx)
+	require.NoError(t, err)
+
+	_, err = client.APIKey.Create().
+		SetName("Archived Key").
+		SetKey("ak-archived").
+		SetUserID(owner.ID).
+		SetProjectID(projectEntity.ID).
+		SetType(apikey.TypeUser).
+		SetStatus(apikey.StatusArchived).
+		Save(ctx)
+	require.NoError(t, err)
+
+	counts, err := resolver.CountAPIKeysByStatus(ctx, &ent.APIKeyWhereInput{
+		ProjectID: &projectEntity.ID,
+	})
+	require.NoError(t, err)
+
+	got := map[apikey.Status]int{}
+	for _, item := range counts {
+		got[item.Status] = item.Count
+	}
+
+	require.Equal(t, 1, got[apikey.StatusEnabled])
+	require.Equal(t, 1, got[apikey.StatusDisabled])
+	require.Equal(t, 1, got[apikey.StatusArchived])
 }

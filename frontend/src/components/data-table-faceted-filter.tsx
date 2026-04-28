@@ -19,6 +19,7 @@ interface DataTableFacetedFilterProps<TData, TValue> {
   }[];
   singleSelect?: boolean;
   footer?: React.ReactNode;
+  optionCounts?: Record<string, number>;
 }
 
 export function DataTableFacetedFilter<TData, TValue>({
@@ -27,6 +28,7 @@ export function DataTableFacetedFilter<TData, TValue>({
   options = [],
   singleSelect = false,
   footer,
+  optionCounts,
 }: DataTableFacetedFilterProps<TData, TValue>) {
   const { t } = useTranslation();
 
@@ -102,8 +104,10 @@ export function DataTableFacetedFilter<TData, TValue>({
                     </div>
                     {option.icon && <option.icon className='text-muted-foreground h-4 w-4' />}
                     <span>{option.label}</span>
-                    {facets?.has(option.value) && (
-                      <span className='ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs'>{facets.get(option.value)}</span>
+                    {((optionCounts && option.value in optionCounts) || facets?.has(option.value)) && (
+                      <span className='ml-auto flex h-4 min-w-4 items-center justify-center font-mono text-xs'>
+                        {optionCounts?.[option.value] ?? facets.get(option.value)}
+                      </span>
                     )}
                   </CommandItem>
                 );

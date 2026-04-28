@@ -97,6 +97,12 @@ export const apiKeyConnectionSchema = z.object({
 });
 export type ApiKeyConnection = z.infer<typeof apiKeyConnectionSchema>;
 
+export const apiKeyStatusCountSchema = z.object({
+  status: apiKeyStatusSchema,
+  count: z.number(),
+});
+export type ApiKeyStatusCount = z.infer<typeof apiKeyStatusCountSchema>;
+
 // Create API Key Input - factory function for i18n support
 export const createApiKeyInputSchemaFactory = (t: (key: string) => string) =>
   z.object({

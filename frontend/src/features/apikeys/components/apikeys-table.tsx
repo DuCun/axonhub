@@ -50,6 +50,7 @@ interface DataTableProps {
   onDateRangeChange: (value: DateTimeRangeValue | undefined) => void;
   onResetFilters?: () => void;
   canWrite?: boolean;
+  statusCounts?: Record<string, number>;
 }
 
 export function ApiKeysTable({
@@ -72,6 +73,7 @@ export function ApiKeysTable({
   onDateRangeChange,
   onResetFilters,
   canWrite = true,
+  statusCounts,
 }: DataTableProps) {
   const { t } = useTranslation();
   const { setResetRowSelection, setSelectedApiKeys, openDialog } = useApiKeysContext();
@@ -152,11 +154,19 @@ export function ApiKeysTable({
   const filteredSelectedRows = useMemo(() => table.getFilteredSelectedRowModel().rows, [table, rowSelection, data]);
 
   const selectedCount = filteredSelectedRows.length;
+  const selectedApiKeys = useMemo(() => filteredSelectedRows.map((row) => row.original as ApiKey), [filteredSelectedRows]);
+  const hasSelectedArchived = selectedApiKeys.some((apiKey) => apiKey.status === 'archived');
+  const hasSelectedDisabled = selectedApiKeys.some((apiKey) => apiKey.status === 'disabled');
+  const canBulkEnable = hasSelectedArchived || hasSelectedDisabled;
+  const bulkEnableTitle = hasSelectedArchived
+    ? hasSelectedDisabled
+      ? `${t('common.buttons.restore')}/${t('common.buttons.enable')}`
+      : t('common.buttons.restore')
+    : t('common.buttons.enable');
 
   useEffect(() => {
-    const selected = filteredSelectedRows.map((row) => row.original as ApiKey);
-    setSelectedApiKeys(selected);
-  }, [filteredSelectedRows, setSelectedApiKeys]);
+    setSelectedApiKeys(selectedApiKeys);
+  }, [selectedApiKeys, setSelectedApiKeys]);
 
   useEffect(() => {
     if (selectedCount === 0) {
@@ -180,7 +190,13 @@ export function ApiKeysTable({
 
   return (
     <div className='flex flex-1 flex-col'>
-      <DataTableToolbar table={table} dateRange={dateRange} onDateRangeChange={onDateRangeChange} onResetFilters={onResetFilters} />
+      <DataTableToolbar
+        table={table}
+        dateRange={dateRange}
+        onDateRangeChange={onDateRangeChange}
+        onResetFilters={onResetFilters}
+        statusCounts={statusCounts}
+      />
       <div className='shadow-soft relative mt-4 flex-1 overflow-auto rounded-2xl border border-[var(--table-border)]'>
         <Table className='border-separate border-spacing-0 rounded-2xl bg-[var(--table-background)]'>
           <TableHeader className='sticky top-0 z-20 bg-[var(--table-header)] shadow-sm'>
@@ -265,9 +281,11 @@ export function ApiKeysTable({
             <Button
               variant='ghost'
               size='icon'
+              data-testid='apikeys-bulk-enable-button'
               className='h-8 w-8 text-green-600 hover:bg-green-100 hover:text-green-700'
+              disabled={!canBulkEnable}
               onClick={() => openDialog('bulkEnable')}
-              title={t('common.buttons.enable')}
+              title={bulkEnableTitle}
             >
               <IconCheck className='h-4 w-4' />
             </Button>

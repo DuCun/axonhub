@@ -28,6 +28,7 @@ export function ApiKeysStatusDialog() {
   };
 
   const isDisabling = selectedApiKey.status === 'enabled';
+  const isArchived = selectedApiKey.status === 'archived';
 
   return (
     <ConfirmDialog
@@ -38,15 +39,19 @@ export function ApiKeysStatusDialog() {
       title={
         <span className={isDisabling ? 'text-destructive' : 'text-green-600'}>
           <IconAlertTriangle className={`${isDisabling ? 'stroke-destructive' : 'stroke-green-600'} mr-1 inline-block`} size={18} />
-          {isDisabling ? t('apikeys.dialogs.status.disableTitle') : t('apikeys.dialogs.status.enableTitle')}
+          {isDisabling
+            ? t('apikeys.dialogs.status.disableTitle')
+            : t(isArchived ? 'apikeys.dialogs.status.restoreTitle' : 'apikeys.dialogs.status.enableTitle')}
         </span>
       }
       desc={
         isDisabling
           ? t('apikeys.dialogs.status.disableDescription', { name: selectedApiKey.name })
-          : t('apikeys.dialogs.status.enableDescription', { name: selectedApiKey.name })
+          : t(isArchived ? 'apikeys.dialogs.status.restoreDescription' : 'apikeys.dialogs.status.enableDescription', {
+              name: selectedApiKey.name,
+            })
       }
-      confirmText={isDisabling ? t('common.buttons.disable') : t('common.buttons.enable')}
+      confirmText={isDisabling ? t('common.buttons.disable') : t(isArchived ? 'common.buttons.restore' : 'common.buttons.enable')}
       cancelBtnText={t('common.buttons.cancel')}
     />
   );

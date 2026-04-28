@@ -17,9 +17,10 @@ interface DataTableToolbarProps<TData> {
   dateRange?: DateTimeRangeValue;
   onDateRangeChange?: (range: DateTimeRangeValue | undefined) => void;
   onResetFilters?: () => void;
+  statusCounts?: Record<string, number>;
 }
 
-export function DataTableToolbar<TData>({ table, dateRange, onDateRangeChange, onResetFilters }: DataTableToolbarProps<TData>) {
+export function DataTableToolbar<TData>({ table, dateRange, onDateRangeChange, onResetFilters, statusCounts }: DataTableToolbarProps<TData>) {
   const { t } = useTranslation();
   const hasDateRange = !!dateRange?.from || !!dateRange?.to;
   const isFiltered = table.getState().columnFilters.length > 0 || hasDateRange;
@@ -76,7 +77,12 @@ export function DataTableToolbar<TData>({ table, dateRange, onDateRangeChange, o
           className='h-8 w-[150px] lg:w-[250px]'
         />
         {table.getColumn('status') && (
-          <DataTableFacetedFilter column={table.getColumn('status')} title={t('apikeys.filters.status')} options={statusOptions} />
+          <DataTableFacetedFilter
+            column={table.getColumn('status')}
+            title={t('apikeys.filters.status')}
+            options={statusOptions}
+            optionCounts={statusCounts}
+          />
         )}
         {canViewUsers && table.getColumn('creator') && userOptions.length > 0 && usersData?.edges && (
           <DataTableFacetedFilter column={table.getColumn('creator')} title={t('apikeys.filters.creator')} options={userOptions} />

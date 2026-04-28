@@ -34,10 +34,6 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   };
 
   const handleStatusChange = (apiKey: ApiKey) => {
-    if (apiKey.status === 'archived') {
-      // Archived API keys cannot be enabled/disabled
-      return;
-    }
     setOpen(false);
     setTimeout(() => openDialog('status', apiKey), 0);
   };
@@ -84,24 +80,22 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
                   {t('apikeys.actions.profiles')}
                 </DropdownMenuItem>
               )}
-              {apiKey.status !== 'archived' && (
-                <DropdownMenuItem
-                  onClick={() => handleStatusChange(apiKey)}
-                  className={apiKey.status === 'enabled' ? 'text-orange-600' : 'text-green-600'}
-                >
-                  {apiKey.status === 'enabled' ? (
-                    <>
-                      <IconUserOff className='mr-2 h-4 w-4' />
-                      {t('common.buttons.disable')}
-                    </>
-                  ) : (
-                    <>
-                      <IconUserCheck className='mr-2 h-4 w-4' />
-                      {t('common.buttons.enable')}
-                    </>
-                  )}
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem
+                onClick={() => handleStatusChange(apiKey)}
+                className={apiKey.status === 'enabled' ? 'text-orange-600' : 'text-green-600'}
+              >
+                {apiKey.status === 'enabled' ? (
+                  <>
+                    <IconUserOff className='mr-2 h-4 w-4' />
+                    {t('common.buttons.disable')}
+                  </>
+                ) : (
+                  <>
+                    <IconUserCheck className='mr-2 h-4 w-4' />
+                    {t(apiKey.status === 'archived' ? 'common.buttons.restore' : 'common.buttons.enable')}
+                  </>
+                )}
+              </DropdownMenuItem>
               {apiKey.status !== 'archived' && (
                 <DropdownMenuItem onClick={() => handleArchive(apiKey)} className='text-orange-600'>
                   <IconArchive className='mr-2 h-4 w-4' />

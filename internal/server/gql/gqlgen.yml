@@ -207,6 +207,9 @@ models:
   AutoDisableChannelStatusInput:
     model:
       - github.com/looplj/axonhub/internal/server/biz.AutoDisableChannelStatus
+  APIKeyStatusCount:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.APIKeyStatusCount
   UpdateAPIKeyProfilesInput:
     model:
       - github.com/looplj/axonhub/internal/objects.APIKeyProfiles

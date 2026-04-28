@@ -54,6 +54,11 @@ type APIKeyService struct {
 	keyPrefix      string
 }
 
+type APIKeyStatusCount struct {
+	Status apikey.Status `json:"status"`
+	Count  int           `json:"count"`
+}
+
 func NewAPIKeyService(params APIKeyServiceParams) *APIKeyService {
 	svc := &APIKeyService{
 		AbstractService: &AbstractService{
@@ -634,6 +639,56 @@ func (s *APIKeyService) BulkEnableAPIKeys(ctx context.Context, ids []int) error 
 // BulkArchiveAPIKeys archives multiple API keys by their IDs.
 func (s *APIKeyService) BulkArchiveAPIKeys(ctx context.Context, ids []int) error {
 	return s.bulkUpdateAPIKeyStatus(ctx, ids, apikey.StatusArchived, "archive")
+}
+
+func (s *APIKeyService) CountAPIKeysByStatus(ctx context.Context, where *ent.APIKeyWhereInput) ([]*APIKeyStatusCount, error) {
+	client := s.entFromContext(ctx)
+	query := client.APIKey.Query()
+
+	if where != nil {
+		var err error
+
+		query, err = where.Filter(query)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply api key filter: %w", err)
+		}
+	}
+
+	var results []APIKeyStatusCount
+
+	err := query.
+		GroupBy(apikey.FieldStatus).
+		Aggregate(ent.As(ent.Count(), "count")).
+		Scan(ctx, &results)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count api keys by status: %w", err)
+	}
+
+	countsByStatus := map[apikey.Status]int{
+		apikey.StatusEnabled:  0,
+		apikey.StatusDisabled: 0,
+		apikey.StatusArchived: 0,
+	}
+
+	for i := range results {
+		result := results[i]
+		countsByStatus[result.Status] = result.Count
+	}
+
+	return []*APIKeyStatusCount{
+		{
+			Status: apikey.StatusEnabled,
+			Count:  countsByStatus[apikey.StatusEnabled],
+		},
+		{
+			Status: apikey.StatusDisabled,
+			Count:  countsByStatus[apikey.StatusDisabled],
+		},
+		{
+			Status: apikey.StatusArchived,
+			Count:  countsByStatus[apikey.StatusArchived],
+		},
+	}, nil
 }
 
 func (s *APIKeyService) EnsureNoAuthAPIKey(ctx context.Context) (*ent.APIKey, error) {

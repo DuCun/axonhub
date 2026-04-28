@@ -6,6 +6,79 @@ test.describe('Admin API Keys Management', () => {
     await gotoAndEnsureAuth(page, '/project/api-keys')
   })
 
+  test('status counts refresh after creating an API key', async ({ page }) => {
+    const uniqueName = `pw-test-count-${Date.now().toString().slice(-6)}`
+    const searchInput = page.getByPlaceholder(/按名称过滤|Filter by name|名称|Name/i).first()
+    await expect(searchInput).toBeVisible()
+    await searchInput.fill(uniqueName)
+
+    await expect
+      .poll(async () => {
+        const statusButton = page.getByRole('button', { name: /状态|Status/i }).first()
+        await expect(statusButton).toBeVisible()
+        await statusButton.click()
+
+        const popover = page.locator('[cmdk-list]').last()
+        await expect(popover).toBeVisible()
+
+        const item = popover.locator('[cmdk-item]').filter({ hasText: /启用|Enabled/i }).first()
+        await expect(item).toBeVisible()
+
+        const countText = await item.locator('span.font-mono').textContent()
+        await page.keyboard.press('Escape')
+
+        return Number(countText ?? '0')
+      })
+      .toBe(0)
+
+    const addApiKeyButton = page.getByRole('button', { name: /创建 API Key|Create API Key|新建/i })
+    await expect(addApiKeyButton).toBeVisible()
+    await addApiKeyButton.click()
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+    await dialog.getByLabel(/名称|Name/i).fill(uniqueName)
+
+    const userSelect = dialog.locator('[data-testid="user-select"], [role="combobox"]').first()
+    if (await userSelect.isVisible()) {
+      await userSelect.click()
+      const firstOption = page.locator('[role="option"]:not([aria-disabled="true"])').first()
+      if (await firstOption.isVisible()) {
+        await firstOption.click()
+      }
+    }
+
+    await dialog.getByRole('button', { name: /创建|Create|保存|Save/i }).click()
+
+    const viewDialog = page.getByRole('dialog', { name: /查看 API 密钥|View API Key/i })
+    await expect(viewDialog).toBeVisible({ timeout: 10000 })
+    await viewDialog.getByRole('button', { name: /Close|关闭/i }).click()
+    await expect(viewDialog).not.toBeVisible({ timeout: 10000 })
+
+    const table = page.locator('[data-testid="api-keys-table"], table:has(th), table').first()
+    const row = table.locator('tbody tr').filter({ hasText: uniqueName })
+    await expect(row).toBeVisible()
+
+    await expect
+      .poll(async () => {
+        const statusButton = page.getByRole('button', { name: /状态|Status/i }).first()
+        await expect(statusButton).toBeVisible()
+        await statusButton.click()
+
+        const popover = page.locator('[cmdk-list]').last()
+        await expect(popover).toBeVisible()
+
+        const item = popover.locator('[cmdk-item]').filter({ hasText: /启用|Enabled/i }).first()
+        await expect(item).toBeVisible()
+
+        const countText = await item.locator('span.font-mono').textContent()
+        await page.keyboard.press('Escape')
+
+        return Number(countText ?? '0')
+      })
+      .toBe(1)
+  })
+
   test('can create, disable, enable an API key', async ({ page }) => {
     const uniqueName = `pw-test-apikey-${Date.now().toString().slice(-6)}`
 
@@ -84,6 +157,126 @@ test.describe('Admin API Keys Management', () => {
     await enableConfirmButton.click()
     await expect(enableDialog).not.toBeVisible({ timeout: 10000 })
     await expect(row).toContainText(/启用|Enabled/i)
+  })
+
+  test('bulk mixed archived and disabled api keys use restore enable semantics', async ({ page }) => {
+    const archivedName = `pw-test-arch-${Date.now().toString().slice(-6)}`
+    const disabledName = `pw-test-dis-${Date.now().toString().slice(-6)}`
+
+    for (const name of [archivedName, disabledName]) {
+      const addApiKeyButton = page.getByRole('button', { name: /创建 API Key|Create API Key|新建/i })
+      await expect(addApiKeyButton).toBeVisible()
+      await addApiKeyButton.click()
+
+      const dialog = page.getByRole('dialog')
+      await expect(dialog).toBeVisible()
+      await dialog.getByLabel(/名称|Name/i).fill(name)
+
+      const userSelect = dialog.locator('[data-testid="user-select"], [role="combobox"]').first()
+      if (await userSelect.isVisible()) {
+        await userSelect.click()
+        const firstOption = page.locator('[role="option"]:not([aria-disabled="true"])').first()
+        if (await firstOption.isVisible()) {
+          await firstOption.click()
+        }
+      }
+
+      await Promise.all([
+        waitForGraphQLOperation(page, 'CreateAPIKey'),
+        dialog.getByRole('button', { name: /创建|Create|保存|Save/i }).click(),
+      ])
+
+      const viewDialog = page.getByRole('dialog', { name: /查看 API 密钥|View API Key/i })
+      await expect(viewDialog).toBeVisible({ timeout: 10000 })
+      await viewDialog.getByRole('button', { name: /Close|关闭/i }).click()
+      await expect(viewDialog).not.toBeVisible({ timeout: 10000 })
+    }
+
+    const table = page.locator('[data-testid="api-keys-table"], table:has(th), table').first()
+    const archivedRow = table.locator('tbody tr').filter({ hasText: archivedName })
+    const disabledRow = table.locator('tbody tr').filter({ hasText: disabledName })
+    await expect(archivedRow).toBeVisible()
+    await expect(disabledRow).toBeVisible()
+
+    const archivedActionsTrigger = archivedRow.locator('td:last-child button, button:has-text("Open menu")').first()
+    await archivedActionsTrigger.click()
+    const archivedMenu = page.getByRole('menu')
+    await expect(archivedMenu).toBeVisible()
+    await archivedMenu.getByRole('menuitem', { name: /归档|Archive/i }).focus()
+    await page.keyboard.press('Enter')
+    const archiveDialog = page.getByRole('alertdialog').or(page.getByRole('dialog'))
+    await expect(archiveDialog).toBeVisible()
+    await expect(archiveDialog).toContainText(archivedName)
+    await Promise.all([
+      waitForGraphQLOperation(page, 'UpdateAPIKeyStatus'),
+      archiveDialog.locator('button').last().click(),
+    ])
+    await expect(archiveDialog).not.toBeVisible({ timeout: 10000 })
+    await expect(archivedRow).not.toBeVisible({ timeout: 10000 })
+
+    const disabledActionsTrigger = disabledRow.locator('td:last-child button, button:has-text("Open menu")').first()
+    await disabledActionsTrigger.click()
+    const disabledMenu = page.getByRole('menu')
+    await expect(disabledMenu).toBeVisible()
+    await disabledMenu.getByRole('menuitem', { name: /禁用|Disable/i }).focus()
+    await page.keyboard.press('Enter')
+    const disableDialog = page.getByRole('alertdialog').or(page.getByRole('dialog'))
+    await expect(disableDialog).toBeVisible()
+    await expect(disableDialog).toContainText(disabledName)
+    await Promise.all([
+      waitForGraphQLOperation(page, 'UpdateAPIKeyStatus'),
+      disableDialog.locator('button').last().click(),
+    ])
+    await expect(disableDialog).not.toBeVisible({ timeout: 10000 })
+    await expect(disabledRow).toContainText(/禁用|Disabled/i)
+
+    const statusButton = page.getByRole('button', { name: /状态|Status/i }).first()
+    await expect(statusButton).toBeVisible()
+    await statusButton.click()
+    const statusPopover = page.locator('[cmdk-list]').last()
+    await expect(statusPopover).toBeVisible()
+    const archivedFilter = statusPopover.locator('[cmdk-item]').filter({ hasText: /已归档|Archived/i }).first()
+    const disabledFilter = statusPopover.locator('[cmdk-item]').filter({ hasText: /已禁用|Disabled/i }).first()
+    await expect(archivedFilter).toBeVisible()
+    await expect(disabledFilter).toBeVisible()
+    await archivedFilter.click()
+    await disabledFilter.click()
+    await page.keyboard.press('Escape')
+
+    const archivedRowInFilteredTable = table.locator('tbody tr').filter({ hasText: archivedName })
+    const disabledRowInFilteredTable = table.locator('tbody tr').filter({ hasText: disabledName })
+    await expect(archivedRowInFilteredTable).toBeVisible()
+    await expect(disabledRowInFilteredTable).toBeVisible()
+
+    await archivedRowInFilteredTable.getByRole('checkbox', { name: /选择行|Select row/i }).click()
+    await disabledRowInFilteredTable.getByRole('checkbox', { name: /选择行|Select row/i }).click()
+
+    const bulkEnableButton = page.getByTestId('apikeys-bulk-enable-button')
+    await expect(bulkEnableButton).toBeVisible()
+    await expect(bulkEnableButton).toHaveAttribute('title', /恢复\/启用|Restore\/Enable/)
+    await bulkEnableButton.click()
+
+    const bulkDialog = page.getByRole('alertdialog').or(page.getByRole('dialog'))
+    await expect(bulkDialog).toBeVisible()
+    await expect(bulkDialog).toContainText(/批量恢复\/启用 API Keys|Bulk Restore\/Enable API Keys/i)
+    await expect(bulkDialog).toContainText(/恢复\/启用|restore\/enable/i)
+
+    await Promise.all([
+      waitForGraphQLOperation(page, 'BulkEnableAPIKeys'),
+      bulkDialog.locator('button').last().click(),
+    ])
+    await expect(bulkDialog).not.toBeVisible({ timeout: 10000 })
+
+    const successToast = page.locator('[data-sonner-toast]').filter({ hasText: /恢复\/启用|restored\/enabled/i }).last()
+    await expect(successToast).toBeVisible({ timeout: 10000 })
+
+    const resetFiltersButton = page.getByRole('button', { name: /重置|Reset/i })
+    await expect(resetFiltersButton).toBeVisible()
+    await resetFiltersButton.click()
+
+    await expect(table.locator('tbody tr').filter({ hasText: archivedName })).toBeVisible()
+    await expect(table.locator('tbody tr').filter({ hasText: archivedName })).toContainText(/启用|Enabled/i)
+    await expect(table.locator('tbody tr').filter({ hasText: disabledName })).toContainText(/启用|Enabled/i)
   })
 
   test('profile duplicate name validation - real-time error display', async ({ page }) => {
